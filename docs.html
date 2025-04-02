@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Documentation - Jesse's Bakery</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f9f9f9;
+            color: #333;
+            line-height: 1.6;
+        }
+        .header {
+            background-color: white;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            position: relative;
+            text-align: center;
+        }
+        .back-button {
+            position: absolute;
+            left: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: #4CAF50;
+            cursor: pointer;
+            font-size: 1.2rem;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            text-decoration: none;
+        }
+        .logo {
+            max-width: 100px;
+            height: auto;
+            margin-bottom: 15px;
+        }
+        .main-title {
+            color: #2c3e50;
+            font-size: 28px;
+            margin: 0;
+            font-weight: bold;
+        }
+        .subtitle {
+            color: #7f8c8d;
+            font-size: 16px;
+            margin: 5px 0 0 0;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 40px auto;
+            padding: 0 20px;
+        }
+        .nav-container {
+            position: sticky;
+            top: 20px;
+            width: 250px;
+            float: left;
+            padding-right: 30px;
+        }
+        .content {
+            margin-left: 280px;
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        .nav-menu {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        .nav-menu h3 {
+            margin-top: 0;
+            color: #2c3e50;
+        }
+        .nav-menu ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        .nav-menu li {
+            margin-bottom: 10px;
+        }
+        .nav-menu a {
+            color: #6c757d;
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+        .nav-menu a:hover {
+            color: #4CAF50;
+        }
+        .section {
+            margin-bottom: 40px;
+        }
+        .section h2 {
+            color: #2c3e50;
+            border-bottom: 2px solid #4CAF50;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+        .section p {
+            margin-bottom: 15px;
+        }
+        .placeholder-content {
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 4px;
+            border: 1px dashed #dee2e6;
+            color: #6c757d;
+            text-align: center;
+            margin: 10px 0;
+        }
+        @media (max-width: 768px) {
+            .nav-container {
+                float: none;
+                width: auto;
+                position: static;
+                padding-right: 0;
+                margin-bottom: 20px;
+            }
+            .content {
+                margin-left: 0;
+            }
+        }
+    </style>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="header">
+        <a href="/" class="back-button">
+            <i class="fas fa-arrow-left"></i> Back to Menu
+        </a>
+        <img src="/logo" alt="Jesse's Bakery Logo" class="logo">
+        <h1 class="main-title">Documentation</h1>
+        <p class="subtitle">User Guide & Support Resources</p>
+    </div>
+
+    <div class="container">
+        <div class="nav-container">
+            <div class="nav-menu">
+                <h3>Contents</h3>
+                <ul>
+                    <li><a href="#getting-started">Getting Started</a></li>
+                    <li><a href="#features">Features & Functions</a></li>
+                    <li><a href="#faq">FAQ</a></li>
+                    <li><a href="#contact">Contact Support</a></li>
+                    <li><a href="#troubleshooting">Troubleshooting</a></li>
+                    <li><a href="#updates">Updates & Changes</a></li>
+                    <li><a href="#training">Training Resources</a></li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="content">
+            <div id="getting-started" class="section">
+                <h2>Getting Started</h2>
+                <div class="placeholder-content">
+                    <p>This section will contain:</p>
+                    <ul>
+                        <li>System Requirements</li>
+                        <li>Initial Setup Guide</li>
+                        <li>Basic Navigation</li>
+                        <li>First Steps Tutorial</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div id="features" class="section">
+                <h2>Features & Functions</h2>
+                <div class="placeholder-content">
+                    <p>Detailed documentation for each module:</p>
+                    <ul>
+                        <li>Stores Master</li>
+                        <li>Products Master</li>
+                        <li>Standing Orders</li>
+                        <li>Adjustments</li>
+                        <li>Final Production</li>
+                        <li>Final Delivery</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div id="faq" class="section">
+                <h2>Frequently Asked Questions</h2>
+                <div class="placeholder-content">
+                    <p>Common questions and answers about:</p>
+                    <ul>
+                        <li>System Usage</li>
+                        <li>Data Management</li>
+                        <li>Export Features</li>
+                        <li>Troubleshooting</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div id="contact" class="section">
+                <h2>Contact Support</h2>
+                <div class="placeholder-content">
+                    <p>Support contact information and hours:</p>
+                    <ul>
+                        <li>Email Support</li>
+                        <li>Phone Support</li>
+                        <li>Live Chat</li>
+                        <li>Support Hours</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div id="troubleshooting" class="section">
+                <h2>Troubleshooting</h2>
+                <div class="placeholder-content">
+                    <p>Common issues and solutions:</p>
+                    <ul>
+                        <li>Connection Issues</li>
+                        <li>Data Loading Problems</li>
+                        <li>Export Errors</li>
+                        <li>System Performance</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div id="updates" class="section">
+                <h2>Updates & Changes</h2>
+                <div class="placeholder-content">
+                    <p>System updates and version history:</p>
+                    <ul>
+                        <li>Latest Updates</li>
+                        <li>Change Log</li>
+                        <li>Upcoming Features</li>
+                        <li>Known Issues</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div id="training" class="section">
+                <h2>Training Resources</h2>
+                <div class="placeholder-content">
+                    <p>Available training materials:</p>
+                    <ul>
+                        <li>Video Tutorials</li>
+                        <li>User Guides</li>
+                        <li>Best Practices</li>
+                        <li>Training Schedule</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html> 

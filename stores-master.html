@@ -1,0 +1,1459 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Stores Master Editor</title>
+    <!-- Excel Export Library -->
+    <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
+    <!-- PDF Export Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js"></script>
+    <script>
+        // Convert logo to base64 for PDF export
+        const logoImg = document.createElement('img');
+        logoImg.src = '/logo';
+        logoImg.onload = function() {
+            const canvas = document.createElement('canvas');
+            canvas.width = logoImg.width;
+            canvas.height = logoImg.height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(logoImg, 0, 0);
+            window.logoBase64 = canvas.toDataURL('image/jpeg').split(',')[1];
+        };
+    </script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f9f9f9;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        .logo {
+            max-width: 100px;
+            height: auto;
+            margin-bottom: 15px;
+        }
+        .title-container {
+            text-align: center;
+        }
+        .main-title {
+            color: #2c3e50;
+            font-size: 28px;
+            margin: 0;
+            font-weight: bold;
+        }
+        .subtitle {
+            color: #7f8c8d;
+            font-size: 16px;
+            margin: 5px 0 0 0;
+        }
+        .container {
+            max-width: 95%;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        .table-container {
+            overflow-x: auto;
+            max-height: 80vh;
+            position: relative;
+        }
+        #storesTable {
+            width: 100%;
+            margin: 20px auto;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+        #storesTable thead {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        #storesTable th {
+            background-color: #4CAF50;
+            color: white;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        #storesTable th, #storesTable td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: left;
+        }
+        #storesTable tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+        #storesTable tr:hover {
+            background-color: #ddd;
+        }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            font-size: 18px;
+            color: #666;
+        }
+        .error {
+            color: #d9534f;
+            text-align: center;
+            padding: 20px;
+            font-size: 16px;
+        }
+        .success {
+            color: #5cb85c;
+            text-align: center;
+            padding: 20px;
+            font-size: 16px;
+        }
+        .btn {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 14px;
+            margin: 2px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        .btn:hover {
+            background-color: #45a049;
+        }
+        .btn-edit {
+            background-color: #2196F3;
+        }
+        .btn-edit:hover {
+            background-color: #1976D2;
+        }
+        .btn-save {
+            background-color: #4CAF50;
+        }
+        .btn-cancel {
+            background-color: #f44336;
+        }
+        .btn-cancel:hover {
+            background-color: #da190b;
+        }
+        .btn-clear-filters {
+            background-color: #ff9800;
+        }
+        .btn-clear-filters:hover {
+            background-color: #f57c00;
+        }
+        .btn-export-excel {
+            background-color: #4CAF50;
+        }
+        .btn-export-excel:hover {
+            background-color: #45a049;
+        }
+        .btn-export-pdf {
+            background-color: #4CAF50;
+        }
+        .btn-export-pdf:hover {
+            background-color: #45a049;
+        }
+        .button-container {
+            text-align: center;
+            margin-bottom: 15px;
+        }
+        .editable {
+            background-color: #fff3cd;
+            width: 100%;
+            padding: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        select.editable {
+            height: 32px;
+            background-color: #fff;
+            cursor: pointer;
+        }
+        select.editable:hover {
+            border-color: #999;
+        }
+        select.editable:focus {
+            outline: none;
+            border-color: #4CAF50;
+            box-shadow: 0 0 3px rgba(76, 175, 80, 0.5);
+        }
+        .status-message {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px;
+            border-radius: 5px;
+            display: none;
+            z-index: 1000;
+        }
+        .status-success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status-error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .filter-icon {
+            margin-left: 5px;
+            cursor: pointer;
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.8);
+        }
+        .filter-icon:hover {
+            color: white;
+        }
+        .filter-dropdown {
+            position: fixed;
+            background-color: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            padding: 10px;
+            z-index: 1000;
+            max-height: 300px;
+            overflow-y: auto;
+            min-width: 150px;
+        }
+        .filter-dropdown label {
+            display: block;
+            padding: 5px;
+            margin: 2px 0;
+            cursor: pointer;
+        }
+        .filter-dropdown label:hover {
+            background-color: #f5f5f5;
+        }
+        .filter-dropdown input[type="checkbox"] {
+            margin-right: 8px;
+        }
+        .filter-search {
+            width: calc(100% - 16px);
+            padding: 5px;
+            margin-bottom: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .filter-buttons {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid #ddd;
+        }
+        .filter-buttons button {
+            padding: 4px 8px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .filter-buttons button.apply {
+            background-color: #4CAF50;
+            color: white;
+        }
+        .filter-buttons button.clear {
+            background-color: #f44336;
+            color: white;
+        }
+        .new-row-form {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 15px rgba(0,0,0,0.3);
+            z-index: 1001;
+            max-height: 80vh;
+            overflow-y: auto;
+            width: 80%;
+            max-width: 600px;
+        }
+        .form-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0,0,0,0.5);
+            z-index: 1000;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .form-group input[type="text"],
+        .form-group select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .form-buttons {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .filtered {
+            position: relative;
+        }
+        .filtered::after {
+            content: '⚡';
+            position: absolute;
+            top: 2px;
+            right: 2px;
+            color: yellow;
+            font-size: 12px;
+        }
+        input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            margin: 0;
+            vertical-align: middle;
+            position: relative;
+            cursor: pointer;
+        }
+        input[type="checkbox"]:disabled {
+            cursor: default;
+            opacity: 0.6;
+        }
+        td[data-is-checkbox="true"] {
+            text-align: center;
+            position: relative;
+            min-height: 30px;
+            padding-bottom: 15px;
+        }
+        .override-icon {
+            position: absolute;
+            top: 2px;
+            right: 2px;
+            font-size: 12px;
+            cursor: pointer;
+            color: #666;
+            opacity: 0.7;
+            transition: opacity 0.2s;
+        }
+        .override-text {
+            position: absolute;
+            bottom: 2px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 10px;
+            color: #2196F3;
+            white-space: nowrap;
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .default-region-text {
+            position: absolute;
+            bottom: 2px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 10px;
+            color: #666;
+            white-space: nowrap;
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .override-icon:hover {
+            opacity: 1;
+        }
+        .has-override {
+            background-color: #e3f2fd;
+        }
+        .has-override input[type="checkbox"] {
+            border-color: #2196F3;
+        }
+        .override-popup {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 15px rgba(0,0,0,0.3);
+            z-index: 1002;
+            width: 300px;
+        }
+        .override-popup h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        .override-popup select {
+            width: 100%;
+            padding: 8px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .override-popup .buttons {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .override-popup-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0,0,0,0.5);
+            z-index: 1001;
+        }
+        .metrics-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .metric-box {
+            background-color: white;
+            padding: 15px;
+            border-radius: 6px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            text-align: center;
+        }
+        .metric-title {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+        }
+        .metric-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #2196F3;
+        }
+        .metric-subtitle {
+            font-size: 12px;
+            color: #999;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <button class="back-button btn" onclick="window.location.href='/'">
+                <i class="fas fa-arrow-left"></i> Back to Menu
+            </button>
+            <img src="/logo" alt="Jesse's Bakery Logo" class="logo">
+            <div class="title-container">
+                <h1 class="main-title">Stores Master Editor</h1>
+                <p class="subtitle">Manage store information and settings</p>
+            </div>
+        </div>
+        
+        <div class="metrics-container">
+            <div class="metric-box">
+                <div class="metric-title">Total Stores</div>
+                <div class="metric-value" id="totalStores">-</div>
+                <div class="metric-subtitle">Active stores in database</div>
+            </div>
+            <div class="metric-box">
+                <div class="metric-title">Active Stores</div>
+                <div class="metric-value" id="activeStores">-</div>
+                <div class="metric-subtitle">Currently operating</div>
+            </div>
+            <div class="metric-box">
+                <div class="metric-title">Last Run Date</div>
+                <div class="metric-value" id="lastRunDate">-</div>
+                <div class="metric-subtitle">Database update time</div>
+            </div>
+            <div class="metric-box">
+                <div class="metric-title">Special Days</div>
+                <div class="metric-value" id="specialDays">-</div>
+                <div class="metric-subtitle">Stores with special days</div>
+            </div>
+        </div>
+
+        <div class="button-container">
+            <button class="btn" onclick="fetchData()">Refresh Data</button>
+            <button class="btn" onclick="showNewRowForm()">Add New Store</button>
+            <button class="btn btn-clear-filters" onclick="clearAllFilters()">Clear All Filters</button>
+            <button class="btn btn-export-excel" onclick="exportToExcel()">Export to Excel</button>
+            <button class="btn btn-export-pdf" onclick="exportToPDF()">Export to PDF</button>
+        </div>
+        
+        <div id="loading" class="loading">Loading data...</div>
+        <div id="status-message" class="status-message"></div>
+        
+        <div id="newRowFormContainer"></div>
+        
+        <div class="table-container">
+    <table id="storesTable">
+        <thead>
+            <tr></tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+        </div>
+    </div>
+
+    <script>
+        let editingRow = null;
+        let originalData = null;
+        let regions = []; // Store regions for dropdowns
+        let activeFilters = {}; // Store active filters
+        let allData = []; // Store all data for filtering
+
+        async function fetchData() {
+            console.log("fetchData function called");
+            
+            const loading = document.getElementById('loading');
+            loading.innerHTML = 'Loading data...';
+            loading.style.display = 'block';
+            
+            try {
+                const response = await fetch('/api/stores', {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json'
+                    },
+                    cache: 'no-cache'
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+            const data = await response.json();
+                console.log("Raw data received:", data);
+                
+                if (!data || !data.stores || !Array.isArray(data.stores)) {
+                    throw new Error('Invalid data format received from server');
+                }
+                
+                regions = Array.isArray(data.regions) ? data.regions : [];
+                allData = data.stores; // Store all data for filtering
+
+                // Update metrics
+                updateMetrics(data.stores, data.lastRunDate);
+                
+                console.log("Regions loaded:", regions);
+                console.log("Stores received:", data.stores.length + " records");
+                
+                populateTable(data.stores);
+            } catch (error) {
+                console.error("Error fetching data:", error);
+                const loading = document.getElementById('loading');
+                loading.innerHTML = `<div class="error">Error loading data: ${error.message}</div>`;
+                showStatusMessage('Error loading data: ' + error.message, false);
+            }
+        }
+
+        function populateTable(data) {
+            if (!Array.isArray(data)) {
+                console.error("Invalid data format:", data);
+                showStatusMessage('Error: Invalid data format received', false);
+                return;
+            }
+
+            const loading = document.getElementById('loading');
+            const table = document.getElementById('storesTable');
+            const thead = table.querySelector('thead tr');
+            const tbody = table.querySelector('tbody');
+            
+            thead.innerHTML = '';
+            tbody.innerHTML = '';
+
+            if (!data || data.length === 0) {
+                loading.innerHTML = '<div class="error">No data received from the server.</div>';
+                return;
+            }
+
+            loading.style.display = 'none';
+
+            // Define columns to exclude
+            const excludeColumns = [
+                'Run_ID', 'Shelf_Limit', 'Latitude', 'Longitude',
+                'INVOICED', 'XERO_CODE', 'XERO_CUSTOMERID',
+                'SUN_OVERRIDE', 'MON_OVERRIDE', 'TUE_OVERRIDE',
+                'WED_OVERRIDE', 'THU_OVERRIDE', 'FRI_OVERRIDE', 'SAT_OVERRIDE'
+            ];
+
+            // Get columns from first row and filter out excluded ones
+            const columns = Object.keys(data[0]).filter(col => !excludeColumns.includes(col));
+            
+            // Add headers with filter icons
+                columns.forEach(column => {
+                    const th = document.createElement('th');
+                th.innerHTML = `${column} <span class="filter-icon" onclick="showFilter('${column}', this)">🔍</span>`;
+                if (activeFilters[column]) {
+                    th.classList.add('filtered');
+                }
+                    thead.appendChild(th);
+                });
+            
+            // Add action column header
+            const actionTh = document.createElement('th');
+            actionTh.textContent = 'Actions';
+            thead.appendChild(actionTh);
+
+                // Create table rows
+            data.forEach((row, index) => {
+                    const tr = document.createElement('tr');
+                tr.dataset.storeId = row.Store_ID;
+                
+                    columns.forEach(column => {
+                        const td = document.createElement('td');
+                    if (['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'].includes(column)) {
+                        const checkbox = document.createElement('input');
+                        checkbox.type = 'checkbox';
+                        checkbox.checked = row[column] === 'TRUE';
+                        checkbox.disabled = true;
+                        td.appendChild(checkbox);
+
+                        // Add override icon and check if there's an override
+                        const overrideValue = row[column.substring(0, 3) + '_OVERRIDE'];
+                        if (overrideValue) {
+                            td.classList.add('has-override');
+                            const overrideText = document.createElement('span');
+                            overrideText.className = 'override-text';
+                            overrideText.textContent = overrideValue;
+                            td.appendChild(overrideText);
+                        } else if (row[column] === 'TRUE') {
+                            // Only show default region if the day is checked
+                            const defaultRegion = row.Region;
+                            if (defaultRegion) {
+                                const defaultText = document.createElement('span');
+                                defaultText.className = 'default-region-text';
+                                defaultText.textContent = defaultRegion;
+                                td.appendChild(defaultText);
+                            }
+                        }
+                        const overrideIcon = document.createElement('span');
+                        overrideIcon.className = 'override-icon';
+                        overrideIcon.innerHTML = '⚙️';
+                        overrideIcon.title = overrideValue || 'Set override';
+                        overrideIcon.onclick = () => showOverridePopup(row.Store_ID, column, overrideValue);
+                        td.appendChild(overrideIcon);
+                    } else if (['SPECIAL_SUNDAY', 'SPECIAL_FRIDAY'].includes(column)) {
+                        const checkbox = document.createElement('input');
+                        checkbox.type = 'checkbox';
+                        checkbox.checked = row[column] === 'TRUE';
+                        checkbox.disabled = true;
+                        td.appendChild(checkbox);
+                    } else {
+                        td.textContent = row[column] !== null ? row[column] : '';
+                    }
+                    td.dataset.column = column;
+                    if (column !== 'Store_ID') {
+                        td.dataset.editable = 'true';
+                        if (['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SPECIAL_SUNDAY', 'SPECIAL_FRIDAY'].includes(column)) {
+                            td.dataset.isCheckbox = 'true';
+                        }
+                    }
+                        tr.appendChild(td);
+                    });
+                
+                // Add action buttons
+                const actionTd = document.createElement('td');
+                const editBtn = document.createElement('button');
+                editBtn.textContent = 'Edit';
+                editBtn.className = 'btn btn-edit';
+                editBtn.onclick = () => startEditing(tr);
+                actionTd.appendChild(editBtn);
+                tr.appendChild(actionTd);
+                
+                    tbody.appendChild(tr);
+            });
+        }
+
+        function showFilter(column, element) {
+            // Remove any existing filter dropdowns
+            const existingDropdowns = document.querySelectorAll('.filter-dropdown');
+            existingDropdowns.forEach(dropdown => dropdown.remove());
+
+            // Get unique values for the column
+            const values = [...new Set(allData.map(row => row[column]))].filter(value => value !== null && value !== '');
+            
+            // Create filter dropdown
+            const dropdown = document.createElement('div');
+            dropdown.className = 'filter-dropdown';
+            
+            // Add search box
+            const search = document.createElement('input');
+            search.type = 'text';
+            search.className = 'filter-search';
+            search.placeholder = 'Search...';
+            search.oninput = (e) => {
+                const searchText = e.target.value.toLowerCase();
+                dropdown.querySelectorAll('label').forEach(label => {
+                    const text = label.textContent.toLowerCase();
+                    label.style.display = text.includes(searchText) ? '' : 'none';
+                });
+            };
+            dropdown.appendChild(search);
+
+            // Add checkboxes for each value
+            values.sort().forEach(value => {
+                const label = document.createElement('label');
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.checked = activeFilters[column]?.includes(value) || false;
+                checkbox.value = value;
+                label.appendChild(checkbox);
+                label.appendChild(document.createTextNode(value));
+                dropdown.appendChild(label);
+            });
+
+            // Add buttons
+            const buttonContainer = document.createElement('div');
+            buttonContainer.className = 'filter-buttons';
+            
+            const applyButton = document.createElement('button');
+            applyButton.textContent = 'Apply';
+            applyButton.className = 'apply';
+            applyButton.onclick = () => applyFilter(column, dropdown);
+            
+            const clearButton = document.createElement('button');
+            clearButton.textContent = 'Clear';
+            clearButton.className = 'clear';
+            clearButton.onclick = () => clearFilter(column);
+            
+            buttonContainer.appendChild(clearButton);
+            buttonContainer.appendChild(applyButton);
+            dropdown.appendChild(buttonContainer);
+
+            // Position and show dropdown
+            const rect = element.getBoundingClientRect();
+            dropdown.style.top = `${rect.bottom + window.scrollY}px`;
+            dropdown.style.left = `${rect.left}px`;
+            document.body.appendChild(dropdown);
+
+            // Close dropdown when clicking outside
+            document.addEventListener('click', function closeDropdown(e) {
+                if (!dropdown.contains(e.target) && e.target !== element) {
+                    dropdown.remove();
+                    document.removeEventListener('click', closeDropdown);
+                }
+            });
+        }
+
+        function applyFilter(column, dropdown) {
+            const selectedValues = Array.from(dropdown.querySelectorAll('input[type="checkbox"]:checked'))
+                .map(cb => cb.value);
+            
+            if (selectedValues.length > 0) {
+                activeFilters[column] = selectedValues;
+            } else {
+                delete activeFilters[column];
+            }
+
+            // Apply all active filters
+            let filteredData = allData;
+            Object.entries(activeFilters).forEach(([col, values]) => {
+                filteredData = filteredData.filter(row => values.includes(row[col]));
+            });
+
+            // Update metrics with filtered data
+            updateMetrics(filteredData, null);
+            
+            // Update table with filtered data
+            populateTable(filteredData);
+            dropdown.remove();
+        }
+
+        function clearFilter(column) {
+            delete activeFilters[column];
+            populateTable(allData);
+            const dropdown = document.querySelector('.filter-dropdown');
+            if (dropdown) dropdown.remove();
+        }
+
+        async function showNewRowForm() {
+            const formContainer = document.getElementById('newRowFormContainer');
+            
+            try {
+                // Get the next Store_ID
+                const response = await fetch('/api/stores/next-id');
+                if (!response.ok) {
+                    throw new Error('Failed to get next Store ID');
+                }
+                const { nextId } = await response.json();
+                
+                // Create form HTML with special day checkboxes
+                const formHtml = `
+                    <div class="form-overlay">
+                        <div class="new-row-form">
+                            <h2>Add New Store</h2>
+                            <form id="newStoreForm">
+                                <div class="form-group">
+                                    <label for="Store_ID">Store ID</label>
+                                    <input type="text" id="Store_ID" value="${nextId}" readonly style="background-color: #f0f0f0;">
+                                </div>
+                                <div class="form-group">
+                                    <label for="Store_Name">Store Name*</label>
+                                    <input type="text" id="Store_Name" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="Region">Region*</label>
+                                    <select id="Region" required>
+                                        <option value="">-- Select Region --</option>
+                                        ${regions.map(region => `<option value="${region}">${region}</option>`).join('')}
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="State">State*</label>
+                                    <input type="text" id="State" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="Active">Active*</label>
+                                    <select id="Active" required>
+                                        <option value="Active">Active</option>
+                                        <option value="Inactive">Inactive</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="Address">Address</label>
+                                    <input type="text" id="Address">
+                                </div>
+                                <div class="form-group">
+                                    <label for="Supplier_Code">Supplier Code</label>
+                                    <input type="text" id="Supplier_Code">
+                                </div>
+                                <div class="form-group">
+                                    <label>
+                                        <input type="checkbox" id="SPECIAL_FRIDAY" onchange="handleSpecialDayChange(this, 'FRIDAY')">
+                                        Special Friday
+                                    </label>
+                                </div>
+                                <div class="form-group">
+                                    <label>
+                                        <input type="checkbox" id="SPECIAL_SUNDAY" onchange="handleSpecialDayChange(this, 'SUNDAY')">
+                                        Special Sunday
+                                    </label>
+                                </div>
+                                <div class="form-buttons">
+                                    <button type="button" class="btn btn-cancel" onclick="closeNewRowForm()">Cancel</button>
+                                    <button type="submit" class="btn btn-save">Save</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                `;
+                
+                formContainer.innerHTML = formHtml;
+                
+                // Add form submit handler
+                document.getElementById('newStoreForm').onsubmit = async (e) => {
+                    e.preventDefault();
+                    await saveNewStore();
+                };
+            } catch (error) {
+                console.error('Error getting next Store ID:', error);
+                showStatusMessage('Error: ' + error.message, false);
+            }
+        }
+
+        function closeNewRowForm() {
+            const formContainer = document.getElementById('newRowFormContainer');
+            formContainer.innerHTML = '';
+        }
+
+        async function saveNewStore() {
+            const newStore = {
+                Store_Name: document.getElementById('Store_Name').value,
+                Region: document.getElementById('Region').value,
+                State: document.getElementById('State').value,
+                Active: document.getElementById('Active').value,
+                Address: document.getElementById('Address').value,
+                Supplier_Code: document.getElementById('Supplier_Code').value,
+                SUNDAY: document.getElementById('SPECIAL_SUNDAY')?.checked ? 'TRUE' : 'FALSE',
+                MONDAY: 'FALSE',
+                TUESDAY: 'FALSE',
+                WEDNESDAY: 'FALSE',
+                THURSDAY: 'FALSE',
+                FRIDAY: document.getElementById('SPECIAL_FRIDAY')?.checked ? 'TRUE' : 'FALSE',
+                SATURDAY: 'FALSE',
+                SPECIAL_FRIDAY: document.getElementById('SPECIAL_FRIDAY')?.checked ? 'TRUE' : 'FALSE',
+                SPECIAL_SUNDAY: document.getElementById('SPECIAL_SUNDAY')?.checked ? 'TRUE' : 'FALSE'
+            };
+
+            try {
+                const response = await fetch('/api/stores', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(newStore)
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Failed to create store');
+                }
+
+                const result = await response.json();
+                showStatusMessage(`Store created successfully with ID: ${result.storeId}`, true);
+                closeNewRowForm();
+                await fetchData(); // Refresh the table
+            } catch (error) {
+                console.error('Error creating store:', error);
+                showStatusMessage(error.message, false);
+            }
+        }
+
+        function handleSpecialDayChange(checkbox, dayToCheck) {
+            // This function will be called when special day checkboxes are changed in the new store form
+            const isChecked = checkbox.checked;
+            // The regular day checkbox is handled in saveNewStore
+        }
+
+        function startEditing(row) {
+            if (editingRow && editingRow !== row) {
+                cancelEditing();
+            }
+
+            editingRow = row;
+            const cells = row.getElementsByTagName('td');
+            originalData = {};
+
+            // Convert cells to input fields
+            for (let i = 0; i < cells.length - 1; i++) {
+                const cell = cells[i];
+                if (cell.dataset.editable === 'true') {
+                    const column = cell.dataset.column;
+                    if (cell.dataset.isCheckbox === 'true') {
+                        const checkbox = cell.querySelector('input[type="checkbox"]');
+                        if (checkbox) {
+                            originalData[column] = checkbox.checked;
+                            checkbox.disabled = false;
+
+                            // Add event listeners for special day checkboxes
+                            if (column === 'SPECIAL_FRIDAY' || column === 'SPECIAL_SUNDAY') {
+                                checkbox.addEventListener('change', function() {
+                                    const dayToCheck = column === 'SPECIAL_FRIDAY' ? 'FRIDAY' : 'SUNDAY';
+                                    const dayCell = Array.from(cells).find(c => c.dataset.column === dayToCheck);
+                                    if (dayCell) {
+                                        const dayCheckbox = dayCell.querySelector('input[type="checkbox"]');
+                                        if (dayCheckbox) {
+                                            dayCheckbox.checked = this.checked;
+                                        }
+                                    }
+                                });
+                            }
+                        }
+                    } else if (cell.dataset.isOverride === 'true') {
+                        // Create dropdown for override fields
+                        const value = cell.textContent;
+                        originalData[column] = value;
+                        
+                        const select = document.createElement('select');
+                        select.className = 'editable';
+                        
+                        const emptyOption = document.createElement('option');
+                        emptyOption.value = '';
+                        emptyOption.textContent = '-- Select --';
+                        select.appendChild(emptyOption);
+                        
+                        regions.forEach(region => {
+                            const option = document.createElement('option');
+                            option.value = region;
+                            option.textContent = region;
+                            if (region === value) {
+                                option.selected = true;
+                            }
+                            select.appendChild(option);
+                        });
+                        
+                        cell.innerHTML = '';
+                        cell.appendChild(select);
+                    } else {
+                        // Regular text input for other fields
+                        const value = cell.textContent;
+                        originalData[column] = value;
+                        cell.innerHTML = `<input type="text" value="${value}" class="editable">`;
+                    }
+                    cell.classList.add('editable');
+                }
+            }
+
+            // Replace edit button with save/cancel buttons
+            const actionCell = cells[cells.length - 1];
+            actionCell.innerHTML = `
+                <button class="btn btn-save" onclick="saveChanges('${row.dataset.storeId}')">Save</button>
+                <button class="btn btn-cancel" onclick="cancelEditing()">Cancel</button>
+            `;
+        }
+
+        function cancelEditing() {
+            if (!editingRow) return;
+
+            const cells = editingRow.getElementsByTagName('td');
+            
+            // Restore original values
+            for (let i = 0; i < cells.length - 1; i++) {
+                const cell = cells[i];
+                if (cell.dataset.editable === 'true') {
+                    const column = cell.dataset.column;
+                    if (cell.dataset.isCheckbox === 'true') {
+                        // Disable checkbox and restore original state
+                        const checkbox = cell.querySelector('input[type="checkbox"]');
+                        if (checkbox) {
+                            checkbox.checked = originalData[column];
+                            checkbox.disabled = true;
+                        }
+                    } else {
+                        cell.textContent = originalData[column];
+                    }
+                    cell.classList.remove('editable');
+                }
+            }
+
+            // Restore edit button
+            const actionCell = cells[cells.length - 1];
+            actionCell.innerHTML = `<button class="btn btn-edit" onclick="startEditing(this.closest('tr'))">Edit</button>`;
+
+            editingRow = null;
+            originalData = null;
+        }
+
+        async function saveChanges(storeId) {
+            if (!editingRow) return;
+
+            const updates = {};
+            const cells = editingRow.getElementsByTagName('td');
+
+            // Gather changes
+            for (let i = 0; i < cells.length - 1; i++) {
+                const cell = cells[i];
+                if (cell.dataset.editable === 'true') {
+                    const column = cell.dataset.column;
+                    let newValue;
+                    
+                    if (cell.dataset.isCheckbox === 'true') {
+                        const checkbox = cell.querySelector('input[type="checkbox"]');
+                        newValue = checkbox ? (checkbox.checked ? 'TRUE' : 'FALSE') : 'FALSE';
+                        
+                        // If special day is checked, ensure corresponding day is also set to TRUE
+                        if ((column === 'SPECIAL_FRIDAY' || column === 'SPECIAL_SUNDAY') && newValue === 'TRUE') {
+                            const dayColumn = column === 'SPECIAL_FRIDAY' ? 'FRIDAY' : 'SUNDAY';
+                            updates[dayColumn] = 'TRUE';
+                        }
+                        
+                        if (newValue !== (originalData[column] ? 'TRUE' : 'FALSE')) {
+                            updates[column] = newValue;
+                        }
+                    } else if (cell.dataset.isOverride === 'true') {
+                        const select = cell.querySelector('select');
+                        newValue = select ? select.value : '';
+                        if (newValue !== originalData[column]) {
+                            updates[column] = newValue;
+                        }
+                    } else {
+                        const input = cell.querySelector('input');
+                        newValue = input ? input.value : '';
+                        if (newValue !== originalData[column]) {
+                            updates[column] = newValue;
+                        }
+                    }
+                }
+            }
+
+            if (Object.keys(updates).length === 0) {
+                showStatusMessage('No changes to save', true);
+                cancelEditing();
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/stores/${storeId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(updates)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Failed to save changes: ${response.statusText}`);
+                }
+
+                showStatusMessage('Changes saved successfully', true);
+                await fetchData(); // Refresh the table
+            } catch (error) {
+                console.error('Error saving changes:', error);
+                showStatusMessage(error.message, false);
+            }
+        }
+
+        function showStatusMessage(message, isSuccess) {
+            const statusDiv = document.getElementById('status-message');
+            statusDiv.textContent = message;
+            statusDiv.className = 'status-message ' + (isSuccess ? 'status-success' : 'status-error');
+            statusDiv.style.display = 'block';
+
+            setTimeout(() => {
+                statusDiv.style.display = 'none';
+            }, 3000);
+        }
+
+        function updateMetrics(stores, lastRunDate) {
+            // Update total stores
+            document.getElementById('totalStores').textContent = stores.length;
+
+            // Update active stores
+            const activeCount = stores.filter(store => store.Active === 'Active').length;
+            document.getElementById('activeStores').textContent = activeCount;
+
+            // Update last run date with proper formatting for AEST
+            let formattedDate = 'N/A';
+            if (lastRunDate) {
+                try {
+                    // Create a new Date object for the current date and time in AEST
+                    const now = new Date();
+                    const aestOptions = {
+                        timeZone: 'Australia/Sydney',
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit',
+                        hour12: true
+                    };
+                    formattedDate = new Intl.DateTimeFormat('en-AU', aestOptions).format(now) + ' AEST';
+                } catch (error) {
+                    console.error('Error formatting date:', error);
+                    formattedDate = 'Error formatting date';
+                }
+            }
+            document.getElementById('lastRunDate').textContent = formattedDate;
+
+            // Update special days count
+            const specialDaysCount = stores.filter(store => 
+                store.SPECIAL_FRIDAY === 'TRUE' || store.SPECIAL_SUNDAY === 'TRUE'
+            ).length;
+            document.getElementById('specialDays').textContent = specialDaysCount;
+
+            // Update metric subtitles to show filter status
+            const hasFilters = Object.keys(activeFilters).length > 0;
+            const filterInfo = hasFilters ? ' (Filtered)' : '';
+            document.querySelector('#totalStores').closest('.metric-box').querySelector('.metric-subtitle').textContent = 
+                'Stores in database' + filterInfo;
+            document.querySelector('#activeStores').closest('.metric-box').querySelector('.metric-subtitle').textContent = 
+                'Currently operating' + filterInfo;
+            document.querySelector('#specialDays').closest('.metric-box').querySelector('.metric-subtitle').textContent = 
+                'Stores with special days' + filterInfo;
+        }
+
+        function showOverridePopup(storeId, dayColumn, currentOverride) {
+            const overlay = document.createElement('div');
+            overlay.className = 'override-popup-overlay';
+            
+            const popup = document.createElement('div');
+            popup.className = 'override-popup';
+            
+            const dayName = dayColumn.charAt(0) + dayColumn.slice(1).toLowerCase();
+            popup.innerHTML = `
+                <h3>${dayName} Override</h3>
+                <select id="override-select">
+                    <option value="">-- No Override --</option>
+                    ${regions.map(region => 
+                        `<option value="${region}" ${region === currentOverride ? 'selected' : ''}>${region}</option>`
+                    ).join('')}
+                </select>
+                <div class="buttons">
+                    <button class="btn btn-cancel" onclick="closeOverridePopup()">Cancel</button>
+                    <button class="btn btn-save" onclick="saveOverride('${storeId}', '${dayColumn}')">Save</button>
+                </div>
+            `;
+            
+            document.body.appendChild(overlay);
+            document.body.appendChild(popup);
+        }
+
+        function closeOverridePopup() {
+            const overlay = document.querySelector('.override-popup-overlay');
+            const popup = document.querySelector('.override-popup');
+            if (overlay) overlay.remove();
+            if (popup) popup.remove();
+        }
+
+        async function saveOverride(storeId, dayColumn) {
+            const select = document.getElementById('override-select');
+            const overrideValue = select.value;
+            const overrideColumn = dayColumn.substring(0, 3) + '_OVERRIDE';
+            
+            try {
+                const response = await fetch(`/api/stores/${storeId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        [overrideColumn]: overrideValue
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Failed to save override: ${response.statusText}`);
+                }
+
+                showStatusMessage('Override saved successfully', true);
+                closeOverridePopup();
+                await fetchData(); // Refresh the table
+            } catch (error) {
+                console.error('Error saving override:', error);
+                showStatusMessage(error.message, false);
+            }
+        }
+
+        function clearAllFilters() {
+            // Clear all active filters
+            activeFilters = {};
+            
+            // Remove filtered class from all headers
+            const headers = document.querySelectorAll('#storesTable th');
+            headers.forEach(header => {
+                header.classList.remove('filtered');
+            });
+            
+            // Repopulate table with all data and update metrics
+            updateMetrics(allData, null);
+            populateTable(allData);
+            
+            // Show status message
+            showStatusMessage('All filters cleared', true);
+        }
+
+        function exportToExcel() {
+            // Get the current data (filtered or all)
+            const data = Object.keys(activeFilters).length > 0 ? 
+                allData.filter(row => {
+                    return Object.entries(activeFilters).every(([col, values]) => values.includes(row[col]));
+                }) : allData;
+
+            // Define columns to exclude
+            const excludeColumns = [
+                'Run_ID', 'Shelf_Limit', 'Latitude', 'Longitude',
+                'INVOICED', 'XERO_CODE', 'XERO_CUSTOMERID',
+                'SUN_OVERRIDE', 'MON_OVERRIDE', 'TUE_OVERRIDE',
+                'WED_OVERRIDE', 'THU_OVERRIDE', 'FRI_OVERRIDE', 'SAT_OVERRIDE'
+            ];
+
+            // Create workbook data
+            const workbookData = data.map(row => {
+                const newRow = {};
+                Object.keys(row).forEach(key => {
+                    if (!excludeColumns.includes(key)) {
+                        // Format boolean values
+                        if (row[key] === 'TRUE' || row[key] === 'FALSE') {
+                            newRow[key] = row[key] === 'TRUE' ? 'Yes' : 'No';
+                        } else {
+                            newRow[key] = row[key];
+                        }
+                    }
+                });
+                return newRow;
+            });
+
+            // Get current date for filename
+            const now = new Date();
+            const dateStr = now.toISOString().split('T')[0];
+            const filename = `JessesBakery_Stores_${dateStr}.xlsx`;
+
+            // Create a worksheet
+            const worksheet = XLSX.utils.json_to_sheet(workbookData);
+
+            // Set column widths
+            const columnWidths = {};
+            Object.keys(workbookData[0] || {}).forEach(key => {
+                columnWidths[key] = { wch: Math.max(key.length, 15) };
+            });
+            worksheet['!cols'] = Object.values(columnWidths);
+
+            // Create workbook
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, 'Stores');
+
+            // Save file
+            XLSX.writeFile(workbook, filename);
+            showStatusMessage('Excel file exported successfully', true);
+        }
+
+        function exportToPDF() {
+            // Get the current data (filtered or all)
+            const data = Object.keys(activeFilters).length > 0 ? 
+                allData.filter(row => {
+                    return Object.entries(activeFilters).every(([col, values]) => values.includes(row[col]));
+                }) : allData;
+
+            // Define columns to exclude
+            const excludeColumns = [
+                'Run_ID', 'Shelf_Limit', 'Latitude', 'Longitude',
+                'INVOICED', 'XERO_CODE', 'XERO_CUSTOMERID',
+                'SUN_OVERRIDE', 'MON_OVERRIDE', 'TUE_OVERRIDE',
+                'WED_OVERRIDE', 'THU_OVERRIDE', 'FRI_OVERRIDE', 'SAT_OVERRIDE'
+            ];
+
+            // Calculate column widths based on content
+            const columns = Object.keys(data[0] || {}).filter(key => !excludeColumns.includes(key));
+            const columnWidths = {};
+            
+            // A4 landscape dimensions (in points)
+            const pageWidth = 842; // A4 landscape width
+            const margins = 40; // 20pt margins on each side
+            const availableWidth = pageWidth - (margins * 2); // Available width for content
+            
+            // Calculate base widths for different column types
+            const dayWidth = Math.floor(availableWidth * 0.043); // 4.3% for day columns
+            const idWidth = Math.floor(availableWidth * 0.055); // 5.5% for Store_ID
+            const nameWidth = Math.floor(availableWidth * 0.12); // 12% for Store_Name
+            const addressWidth = Math.floor(availableWidth * 0.16); // 16% for Address
+            const regionWidth = Math.floor(availableWidth * 0.085); // 8.5% for Region
+            const stateWidth = Math.floor(availableWidth * 0.055); // 5.5% for State
+            const defaultWidth = Math.floor(availableWidth * 0.052); // 5.2% for other columns
+            
+            columns.forEach(col => {
+                if (['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'].includes(col)) {
+                    columnWidths[col] = dayWidth;
+                } else if (col === 'Store_ID') {
+                    columnWidths[col] = idWidth;
+                } else if (col === 'Store_Name') {
+                    columnWidths[col] = nameWidth;
+                } else if (col === 'Address') {
+                    columnWidths[col] = addressWidth;
+                } else if (col === 'Region') {
+                    columnWidths[col] = regionWidth;
+                } else if (col === 'State') {
+                    columnWidths[col] = stateWidth;
+                } else {
+                    columnWidths[col] = defaultWidth;
+                }
+            });
+
+            const widths = columns.map(col => columnWidths[col]);
+
+            // Create document definition
+            const docDefinition = {
+                header: {
+                    columns: [
+                        {
+                            image: 'data:image/jpeg;base64,' + logoBase64,
+                            width: 30,
+                            margin: [20, 10, 0, 0]
+                        },
+                        {
+                            text: 'Jesse\'s Bakery - Store Master Data',
+                            alignment: 'right',
+                            margin: [0, 15, 20, 0],
+                            fontSize: 9,
+                            bold: true
+                        }
+                    ]
+                },
+                footer: function(currentPage, pageCount) {
+                    return {
+                        text: `Page ${currentPage} of ${pageCount}`,
+                        alignment: 'center',
+                        fontSize: 7,
+                        margin: [0, 10]
+                    };
+                },
+                content: [
+                    {
+                        text: `Generated on: ${new Date().toLocaleString('en-AU', {
+                            timeZone: 'Australia/Sydney',
+                            year: 'numeric',
+                            month: '2-digit',
+                            day: '2-digit',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            hour12: true
+                        })} AEST`,
+                        alignment: 'right',
+                        margin: [0, 0, 20, 8],
+                        fontSize: 6.5
+                    },
+                    {
+                        table: {
+                            headerRows: 1,
+                            widths: widths,
+                            body: [
+                                // Header row
+                                columns.map(key => ({
+                                    text: key,
+                                    bold: true,
+                                    fillColor: '#4CAF50',
+                                    color: 'white',
+                                    fontSize: 6.5,
+                                    margin: [1, 2],
+                                    alignment: ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'].includes(key) ? 'center' : 'left'
+                                })),
+                                // Data rows
+                                ...data.map(row => 
+                                    columns.map(key => ({
+                                        text: row[key] === 'TRUE' ? 'Yes' : 
+                                              row[key] === 'FALSE' ? 'No' : 
+                                              row[key] || '',
+                                        alignment: typeof row[key] === 'number' ? 'right' : 
+                                                 ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'].includes(key) ? 'center' :
+                                                 'left',
+                                        fontSize: 6,
+                                        margin: [1, 1],
+                                        noWrap: ['Store_ID', 'State'].includes(key)
+                                    }))
+                                )
+                            ]
+                        },
+                        layout: {
+                            hLineWidth: function(i, node) { return 0.3; },
+                            vLineWidth: function(i, node) { return 0.3; },
+                            hLineColor: function(i, node) { return '#ddd'; },
+                            vLineColor: function(i, node) { return '#ddd'; },
+                            fillColor: function(i, node) {
+                                return (i % 2 === 0) ? '#f8f9fa' : null;
+                            },
+                            paddingLeft: function(i, node) { return 2; },
+                            paddingRight: function(i, node) { return 2; },
+                            paddingTop: function(i, node) { return 1; },
+                            paddingBottom: function(i, node) { return 1; }
+                        }
+                    }
+                ],
+                pageOrientation: 'landscape',
+                pageSize: 'A4',
+                pageMargins: [20, 35, 20, 25],
+                compress: true
+            };
+
+            // Generate PDF
+            const filename = `JessesBakery_Stores_${new Date().toISOString().split('T')[0]}.pdf`;
+            pdfMake.createPdf(docDefinition).download(filename);
+            showStatusMessage('PDF file exported successfully', true);
+        }
+
+        // Start fetching data when page loads
+        window.onload = fetchData;
+    </script>
+</body>
+</html>

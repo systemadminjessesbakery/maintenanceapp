@@ -1,0 +1,8 @@
+{
+    "appService.zipIgnorePattern": [
+        "node_modules{,/**}",
+        ".vscode{,/**}"
+    ],
+    "appService.defaultWebAppToDeploy": "/subscriptions/7bc6248f-c653-4b1b-ac91-c0b5e87298ad/resourceGroups/Dev_Jesses_Bakery_Resource_Group/providers/Microsoft.Web/sites/JessesBakeryMaintenanceApp",
+    "appService.deploySubpath": "."
+}

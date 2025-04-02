@@ -1,0 +1,1419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Actual Sales - Jesse's Bakery</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+
+        .header {
+            background-color: #4CAF50;
+            color: white;
+            padding: 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .back-button {
+            background: none;
+            border: none;
+            color: white;
+            cursor: pointer;
+            font-size: 1.2rem;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            text-decoration: none;
+        }
+
+        .back-button:hover {
+            opacity: 0.9;
+        }
+
+        .title {
+            margin: 0;
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .controls {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+
+        .date-selector {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .date-input {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .refresh-button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .refresh-button:hover {
+            background-color: #45a049;
+        }
+
+        .table-container {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            overflow: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 800px;
+        }
+
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+
+        /* First four columns remain left-aligned */
+        th:nth-child(-n+4), 
+        td:nth-child(-n+4) {
+            text-align: left;
+        }
+
+        /* Date columns and total column are centered */
+        th:nth-child(n+5), 
+        td:nth-child(n+5) {
+            text-align: center;
+        }
+
+        th {
+            background-color: #4CAF50;
+            color: white;
+            position: sticky;
+            top: 0;
+        }
+
+        th.date-header {
+            padding: 6px;
+            text-align: center;
+        }
+
+        th.date-header .day-name {
+            font-size: 0.8em;
+            opacity: 0.9;
+            display: block;
+            margin-top: 2px;
+            text-align: center;
+        }
+
+        th.total-header {
+            background-color: #388E3C;
+            text-align: center;
+        }
+
+        td.total-column {
+            font-weight: bold;
+            background-color: #f0f0f0;
+            text-align: center;
+        }
+
+        tr:hover {
+            background-color: #f5f5f5;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+            font-style: italic;
+            color: #666;
+        }
+
+        .summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .summary-card {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .summary-card h3 {
+            margin: 0 0 10px 0;
+            color: #333;
+            font-size: 16px;
+        }
+
+        .summary-card p {
+            margin: 0;
+            font-size: 24px;
+            color: #4CAF50;
+            font-weight: bold;
+        }
+
+        .filter-icon {
+            margin-left: 5px;
+            cursor: pointer;
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        .filter-icon:hover {
+            color: white;
+        }
+
+        .filter-dropdown {
+            position: fixed;
+            background-color: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            padding: 10px;
+            z-index: 1000;
+            max-height: 80vh; /* Limit height to 80% of viewport height */
+            width: 300px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .filter-options {
+            overflow-y: auto;
+            flex: 1;
+            min-height: 100px;
+            max-height: calc(80vh - 120px); /* Account for search and buttons */
+            margin: 10px 0;
+            padding-right: 5px;
+        }
+
+        .filter-options label {
+            display: flex;
+            align-items: center;
+            padding: 6px 8px;
+            margin: 2px 0;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+
+        .filter-options label:hover {
+            background-color: #f5f5f5;
+        }
+
+        .filter-options input[type="checkbox"] {
+            margin-right: 8px;
+        }
+
+        .filter-search {
+            position: sticky;
+            top: 0;
+            background: white;
+            padding: 8px;
+            margin: 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            width: calc(100% - 18px);
+            font-size: 14px;
+        }
+
+        .filter-buttons {
+            position: sticky;
+            bottom: 0;
+            background: white;
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            padding-top: 10px;
+            border-top: 1px solid #ddd;
+            margin-top: auto;
+        }
+
+        .filter-button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .filter-apply {
+            background-color: #4CAF50;
+            color: white;
+        }
+
+        .filter-apply:hover {
+            background-color: #45a049;
+        }
+
+        .filter-clear {
+            background-color: #f44336;
+            color: white;
+        }
+
+        .filter-clear:hover {
+            background-color: #da3c31;
+        }
+
+        .export-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .btn-export-excel, .btn-export-pdf {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .btn-export-excel:hover, .btn-export-pdf:hover {
+            background-color: #45a049;
+        }
+
+        .btn-clear-filters {
+            background-color: #ff9800;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            margin-left: auto;
+        }
+
+        .btn-clear-filters:hover {
+            background-color: #f57c00;
+        }
+
+        .summary-section {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .product-rankings {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .ranking-card {
+            flex: 1;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .ranking-card h3 {
+            margin: 0 0 15px 0;
+            color: #333;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            text-align: left;
+            justify-content: flex-start;
+        }
+
+        .ranking-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .ranking-item {
+            display: grid;
+            grid-template-columns: 30px auto 100px 80px 80px 80px 100px;
+            gap: 10px;
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+            align-items: center;
+        }
+
+        .ranking-item:last-child {
+            border-bottom: none;
+        }
+
+        .product-name {
+            text-align: left;
+            padding-right: 10px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .historical-data {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 0.9em;
+        }
+
+        .trend-indicator {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 24px;
+            height: 24px;
+        }
+
+        .trend-up {
+            color: #4CAF50;
+        }
+
+        .trend-down {
+            color: #f44336;
+        }
+
+        .historical-quantity {
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        .current-quantity {
+            font-weight: bold;
+            color: #000;
+        }
+
+        .average-quantity {
+            color: #666;
+            font-style: italic;
+            font-size: 0.9em;
+            border-left: 1px solid #eee;
+            padding-left: 10px;
+        }
+
+        .quantity-cell {
+            text-align: right;
+            white-space: nowrap;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .top-products .product-quantity {
+            color: #4CAF50;
+        }
+
+        .bottom-products .product-quantity {
+            color: #f44336;
+        }
+
+        .ranking-header {
+            display: grid;
+            grid-template-columns: 30px auto 100px 80px 80px 80px 100px;
+            gap: 10px;
+            padding: 8px 0;
+            border-bottom: 2px solid #4CAF50;
+            font-size: 0.8em;
+            color: #666;
+            margin-bottom: 8px;
+        }
+
+        .ranking-header span {
+            text-align: right;
+        }
+
+        .ranking-header span:first-child,
+        .ranking-header span:nth-child(2) {
+            text-align: left;
+        }
+    </style>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="header">
+        <div class="header-left">
+            <a href="index.html" class="back-button">
+                <i class="fas fa-arrow-left"></i>
+                Back
+            </a>
+            <h1 class="title">Actual Sales</h1>
+        </div>
+    </div>
+
+    <div class="controls">
+        <div class="date-selector">
+            <label>Select Week:</label>
+            <input type="date" id="weekSelector" class="date-input" onchange="updateDateRange(this.value)">
+            <span>to</span>
+            <input type="date" id="endDate" class="date-input">
+            <button onclick="fetchSalesData()" class="refresh-button">
+                <i class="fas fa-sync-alt"></i>
+                Refresh Data
+            </button>
+            <button onclick="clearAllFilters()" class="btn-clear-filters">
+                <i class="fas fa-filter-circle-xmark"></i>
+                Clear All Filters
+            </button>
+        </div>
+        <div class="export-buttons">
+            <button onclick="exportToExcel()" class="btn btn-export-excel">
+                <i class="fas fa-file-excel"></i> Export to Excel
+            </button>
+            <button onclick="exportToPDF()" class="btn btn-export-pdf">
+                <i class="fas fa-file-pdf"></i> Export to PDF
+            </button>
+        </div>
+    </div>
+
+    <div class="summary" id="summary">
+        <!-- Summary cards will be populated here -->
+    </div>
+
+    <div class="product-rankings">
+        <div class="ranking-card top-products">
+            <h3><i class="fas fa-arrow-up"></i> Top 5 Selling Products</h3>
+            <ul class="ranking-list" id="topProducts">
+                <!-- Top products will be populated here -->
+            </ul>
+        </div>
+        <div class="ranking-card bottom-products">
+            <h3><i class="fas fa-arrow-down"></i> Bottom 5 Selling Products</h3>
+            <ul class="ranking-list" id="bottomProducts">
+                <!-- Bottom products will be populated here -->
+            </ul>
+        </div>
+    </div>
+
+    <div class="product-rankings">
+        <div class="ranking-card top-products">
+            <h3><i class="fas fa-store"></i> Top 5 Selling Stores</h3>
+            <ul class="ranking-list" id="topStores">
+                <!-- Top stores will be populated here -->
+            </ul>
+        </div>
+        <div class="ranking-card bottom-products">
+            <h3><i class="fas fa-store"></i> Bottom 5 Selling Stores</h3>
+            <ul class="ranking-list" id="bottomStores">
+                <!-- Bottom stores will be populated here -->
+            </ul>
+        </div>
+    </div>
+
+    <div class="table-container">
+        <div id="loading" class="loading">Loading sales data...</div>
+        <table>
+            <thead>
+                <tr id="tableHeader">
+                    <th>Store<i class="fas fa-filter filter-icon" onclick="showFilter('store', this)"></i></th>
+                    <th>Location<i class="fas fa-filter filter-icon" onclick="showFilter('location', this)"></i></th>
+                    <th>Product<i class="fas fa-filter filter-icon" onclick="showFilter('product', this)"></i></th>
+                    <th>Source<i class="fas fa-filter filter-icon" onclick="showFilter('source', this)"></i></th>
+                    <!-- Date columns will be added dynamically -->
+                </tr>
+            </thead>
+            <tbody id="salesTable">
+                <!-- Sales data will be populated here -->
+            </tbody>
+        </table>
+    </div>
+
+    <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js"></script>
+    <script>
+        // SQL Query: 
+        // SELECT [Transaction_Date], [Store_ID], [Store_Name], [Location],
+        //        [Product_ID], [Description], [Quantity], [Dollars_Sold],
+        //        [Source], [Old_Store_ID], [Old_Product_ID]
+        // FROM [dbo].[Combined_Sales_Data_Final]
+        // WHERE Transaction_Date BETWEEN @StartDate AND @EndDate
+
+        function getWeekRange(date) {
+            const current = new Date(date);
+            const start = new Date(current);
+            const end = new Date(current);
+            end.setDate(end.getDate() + 6);
+            
+            return {
+                start: start.toISOString().split('T')[0],
+                end: end.toISOString().split('T')[0]
+            };
+        }
+
+        function updateDateRange(startDate) {
+            if (!startDate) return;
+            
+            const endDateInput = document.getElementById('endDate');
+            const range = getWeekRange(startDate);
+            
+            // Enable end date input for manual selection
+            endDateInput.disabled = false;
+            
+            // Set default end date if not already set
+            if (!endDateInput.value) {
+                endDateInput.value = range.end;
+            }
+
+            // Set min and max for end date
+            const minDate = new Date(startDate);
+            const maxDate = new Date(startDate);
+            maxDate.setDate(maxDate.getDate() + 90); // Allow up to 90 days range
+            
+            endDateInput.min = startDate;
+            endDateInput.max = maxDate.toISOString().split('T')[0];
+        }
+
+        let activeFilters = {
+            date: new Set(),
+            store: new Set(),
+            location: new Set(),
+            product: new Set(),
+            quantity: new Set(),
+            source: new Set()
+        };
+
+        let allData = [];
+        let currentFilterDropdown = null;
+
+        function showFilter(column, element) {
+            if (currentFilterDropdown) {
+                document.body.removeChild(currentFilterDropdown);
+                if (currentFilterDropdown.dataset.column === column) {
+                    currentFilterDropdown = null;
+                    return;
+                }
+            }
+
+            const rect = element.getBoundingClientRect();
+            const uniqueValues = new Set();
+            
+            allData.forEach(row => {
+                let value;
+                switch(column) {
+                    case 'store':
+                        value = row.Store_Name;
+                        break;
+                    case 'location':
+                        value = row.Location;
+                        break;
+                    case 'product':
+                        value = row.Description;
+                        break;
+                    case 'source':
+                        value = row.Source;
+                        break;
+                }
+                if (value) uniqueValues.add(value);
+            });
+
+            const dropdown = document.createElement('div');
+            dropdown.className = 'filter-dropdown';
+            dropdown.dataset.column = column;
+
+            const search = document.createElement('input');
+            search.type = 'text';
+            search.className = 'filter-search';
+            search.placeholder = 'Search...';
+            search.oninput = (e) => filterDropdownOptions(e.target.value, optionsContainer);
+            dropdown.appendChild(search);
+
+            const optionsContainer = document.createElement('div');
+            optionsContainer.className = 'filter-options';
+            
+            Array.from(uniqueValues).sort().forEach(value => {
+                const label = document.createElement('label');
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.checked = activeFilters[column].has(value);
+                checkbox.onchange = () => {
+                    if (checkbox.checked) {
+                        activeFilters[column].add(value);
+                    } else {
+                        activeFilters[column].delete(value);
+                    }
+                };
+                label.appendChild(checkbox);
+                label.appendChild(document.createTextNode(value));
+                optionsContainer.appendChild(label);
+            });
+            dropdown.appendChild(optionsContainer);
+
+            const buttonContainer = document.createElement('div');
+            buttonContainer.className = 'filter-buttons';
+
+            const clearButton = document.createElement('button');
+            clearButton.textContent = 'Clear';
+            clearButton.className = 'filter-button filter-clear';
+            clearButton.onclick = () => {
+                activeFilters[column].clear();
+                applyFilters();
+                document.body.removeChild(dropdown);
+                currentFilterDropdown = null;
+            };
+
+            const applyButton = document.createElement('button');
+            applyButton.textContent = 'Apply';
+            applyButton.className = 'filter-button filter-apply';
+            applyButton.onclick = () => {
+                applyFilters();
+                document.body.removeChild(dropdown);
+                currentFilterDropdown = null;
+            };
+
+            buttonContainer.appendChild(clearButton);
+            buttonContainer.appendChild(applyButton);
+            dropdown.appendChild(buttonContainer);
+
+            // Position the dropdown
+            document.body.appendChild(dropdown);
+            
+            // Calculate position to ensure visibility
+            const dropdownRect = dropdown.getBoundingClientRect();
+            const viewportHeight = window.innerHeight;
+            const viewportWidth = window.innerWidth;
+            
+            // Calculate initial position
+            let top = rect.bottom + window.scrollY;
+            let left = rect.left;
+
+            // Check if dropdown would extend below viewport
+            if (top + dropdownRect.height > viewportHeight + window.scrollY) {
+                // Position above if there's more space above than below
+                if (rect.top > (viewportHeight - rect.bottom)) {
+                    top = rect.top + window.scrollY - dropdownRect.height;
+                } else {
+                    // Otherwise, position at bottom of viewport with some padding
+                    top = viewportHeight + window.scrollY - dropdownRect.height - 20;
+                }
+            }
+
+            // Check if dropdown would extend past right edge of viewport
+            if (left + dropdownRect.width > viewportWidth) {
+                left = viewportWidth - dropdownRect.width - 20;
+            }
+
+            // Ensure minimum left position
+            left = Math.max(20, left);
+            
+            // Ensure minimum top position
+            top = Math.max(window.scrollY + 20, top);
+
+            dropdown.style.top = `${top}px`;
+            dropdown.style.left = `${left}px`;
+
+            currentFilterDropdown = dropdown;
+            
+            // Focus the search input
+            setTimeout(() => search.focus(), 100);
+
+            // Close dropdown when clicking outside
+            const closeDropdown = (e) => {
+                if (!dropdown.contains(e.target) && e.target !== element) {
+                    if (document.body.contains(dropdown)) {
+                        document.body.removeChild(dropdown);
+                        currentFilterDropdown = null;
+                        document.removeEventListener('click', closeDropdown);
+                    }
+                }
+            };
+
+            // Delay adding the click listener to prevent immediate closure
+            setTimeout(() => {
+                document.addEventListener('click', closeDropdown);
+            }, 100);
+        }
+
+        function filterDropdownOptions(searchText, optionsContainer) {
+            const labels = optionsContainer.getElementsByTagName('label');
+            for (let label of labels) {
+                const text = label.textContent.toLowerCase();
+                label.style.display = text.includes(searchText.toLowerCase()) ? '' : 'none';
+            }
+        }
+
+        function applyFilters() {
+            const filteredData = allData.filter(row => {
+                return (
+                    (activeFilters.store.size === 0 || activeFilters.store.has(row.Store_Name)) &&
+                    (activeFilters.location.size === 0 || activeFilters.location.has(row.Location)) &&
+                    (activeFilters.product.size === 0 || activeFilters.product.has(row.Description)) &&
+                    (activeFilters.source.size === 0 || activeFilters.source.has(row.Source))
+                );
+            });
+
+            // Update the main table with filtered data
+            renderSalesData(filteredData);
+
+            // Update summary and rankings with filtered data
+            // Pass both filtered current week data and historical data
+            const historicalData = window.historicalData.filter(row => {
+                return (
+                    (activeFilters.store.size === 0 || activeFilters.store.has(row.Store_Name)) &&
+                    (activeFilters.location.size === 0 || activeFilters.location.has(row.Location)) &&
+                    (activeFilters.product.size === 0 || activeFilters.product.has(row.Description)) &&
+                    (activeFilters.source.size === 0 || activeFilters.source.has(row.Source))
+                );
+            });
+
+            updateSummary(filteredData, historicalData);
+
+            // Update filter icon colors to indicate active filters
+            document.querySelectorAll('.filter-icon').forEach(icon => {
+                const column = icon.parentElement.textContent.toLowerCase();
+                if (activeFilters[column] && activeFilters[column].size > 0) {
+                    icon.style.color = 'white';
+                } else {
+                    icon.style.color = 'rgba(255, 255, 255, 0.8)';
+                }
+            });
+        }
+
+        async function fetchSalesData() {
+            const startDate = document.getElementById('weekSelector').value;
+            const endDate = document.getElementById('endDate').value;
+            
+            if (!startDate || !endDate) {
+                showError('Please select a valid date range');
+                return;
+            }
+
+            const loadingElement = document.getElementById('loading');
+            const tableBody = document.getElementById('salesTable');
+            const summaryElement = document.getElementById('summary');
+            
+            loadingElement.style.display = 'block';
+            tableBody.innerHTML = '';
+            summaryElement.innerHTML = '';
+            
+            try {
+                // First fetch current week data
+                const currentWeekResponse = await fetch(`/api/actual-sales?start=${startDate}&end=${endDate}`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (!currentWeekResponse.ok) {
+                    throw new Error(`HTTP error! status: ${currentWeekResponse.status}`);
+                }
+
+                const currentWeekData = await currentWeekResponse.json();
+                
+                if (!currentWeekData || currentWeekData.length === 0) {
+                    showNoData();
+                    return;
+                }
+
+                // Store current week data for the main table and summary
+                allData = currentWeekData;
+
+                // Now fetch historical data for rankings
+                const historicalStart = new Date(startDate);
+                historicalStart.setDate(historicalStart.getDate() - 21); // 3 weeks back
+
+                const historicalResponse = await fetch(`/api/actual-sales?start=${historicalStart.toISOString().split('T')[0]}&end=${endDate}`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (historicalResponse.ok) {
+                    const historicalData = await historicalResponse.json();
+                    // Store historical data for rankings
+                    window.historicalData = historicalData;
+                } else {
+                    console.warn('Failed to fetch historical data for rankings');
+                    window.historicalData = currentWeekData; // Fallback to current week data
+                }
+
+                // Render current week data in table and summary
+                renderSalesData(currentWeekData);
+                updateSummary(currentWeekData, window.historicalData);
+            } catch (error) {
+                console.error('Error fetching sales data:', error);
+                showError('Error loading sales data: ' + error.message);
+            } finally {
+                loadingElement.style.display = 'none';
+            }
+        }
+
+        function showError(message) {
+            const tableBody = document.getElementById('salesTable');
+            tableBody.innerHTML = `
+                <tr>
+                    <td colspan="7" style="text-align: center; padding: 20px;">
+                        <div style="color: #a94442;">
+                            <i class="fas fa-exclamation-circle"></i> ${message}
+                        </div>
+                        <button onclick="fetchSalesData()" class="refresh-button" style="margin-top: 10px;">
+                            <i class="fas fa-sync-alt"></i> Retry
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }
+
+        function showNoData() {
+            const tableBody = document.getElementById('salesTable');
+            tableBody.innerHTML = `
+                <tr>
+                    <td colspan="7" style="text-align: center; padding: 20px;">
+                        <div style="color: #666;">
+                            <i class="fas fa-info-circle"></i> No sales data found for the selected date range
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }
+
+        function renderSalesData(data) {
+            if (!data || data.length === 0) {
+                showNoData();
+                return;
+            }
+
+            // Get unique dates and sort them
+            const dates = [...new Set(data.map(sale => sale.Transaction_Date.split('T')[0]))].sort();
+            
+            // Create a map of store-product combinations
+            const salesMap = new Map();
+            data.forEach(sale => {
+                const key = `${sale.Store_Name}|${sale.Location}|${sale.Description}|${sale.Source}`;
+                if (!salesMap.has(key)) {
+                    salesMap.set(key, {
+                        Store_Name: sale.Store_Name,
+                        Location: sale.Location,
+                        Description: sale.Description,
+                        Source: sale.Source,
+                        dates: {}
+                    });
+                }
+                const dateKey = sale.Transaction_Date.split('T')[0];
+                salesMap.get(key).dates[dateKey] = (salesMap.get(key).dates[dateKey] || 0) + sale.Quantity;
+            });
+
+            // Update table header with date columns and day names
+            const tableHeader = document.getElementById('tableHeader');
+            tableHeader.innerHTML = `
+                <th>Store<i class="fas fa-filter filter-icon" onclick="showFilter('store', this)"></i></th>
+                <th>Location<i class="fas fa-filter filter-icon" onclick="showFilter('location', this)"></i></th>
+                <th>Product<i class="fas fa-filter filter-icon" onclick="showFilter('product', this)"></i></th>
+                <th>Source<i class="fas fa-filter filter-icon" onclick="showFilter('source', this)"></i></th>
+                ${dates.map(date => {
+                    const dayName = new Date(date).toLocaleDateString('en-US', { weekday: 'short' });
+                    return `<th class="date-header">
+                        ${new Date(date).toLocaleDateString()}
+                        <span class="day-name">${dayName}</span>
+                    </th>`;
+                }).join('')}
+                <th class="total-header">Total</th>
+            `;
+
+            // Render table body with quantities by date and total
+            const tableBody = document.getElementById('salesTable');
+            tableBody.innerHTML = Array.from(salesMap.values())
+                .sort((a, b) => a.Store_Name.localeCompare(b.Store_Name))
+                .map(item => {
+                    const rowTotal = dates.reduce((sum, date) => sum + (item.dates[date] || 0), 0);
+                    return `
+                        <tr>
+                            <td>${item.Store_Name}</td>
+                            <td>${item.Location}</td>
+                            <td>${item.Description}</td>
+                            <td>${item.Source}</td>
+                            ${dates.map(date => `<td>${(item.dates[date] || 0).toLocaleString()}</td>`).join('')}
+                            <td class="total-column">${rowTotal.toLocaleString()}</td>
+                        </tr>
+                    `;
+                }).join('');
+        }
+
+        function updateSummary(currentWeekData, historicalData) {
+            // Calculate current week metrics
+            const totalQuantity = currentWeekData.reduce((sum, sale) => sum + sale.Quantity, 0);
+            const uniqueStores = new Set(currentWeekData.map(sale => sale.Store_ID)).size;
+            const uniqueProducts = new Set(currentWeekData.map(sale => sale.Product_ID)).size;
+            
+            // Calculate average quantity per day for current week only
+            const uniqueDates = new Set(currentWeekData.map(sale => sale.Transaction_Date.split('T')[0])).size;
+            const averageQuantity = uniqueDates > 0 ? Math.ceil(totalQuantity / uniqueDates) : 0;
+
+            // Update summary cards with current week data
+            const summaryElement = document.getElementById('summary');
+            summaryElement.innerHTML = `
+                <div class="summary-card">
+                    <h3>Total Quantity</h3>
+                    <p>${totalQuantity.toLocaleString()}</p>
+                </div>
+                <div class="summary-card">
+                    <h3>Average Quantity by Day</h3>
+                    <p>${Math.ceil(averageQuantity).toLocaleString()}</p>
+                </div>
+                <div class="summary-card">
+                    <h3>Unique Stores</h3>
+                    <p>${uniqueStores}</p>
+                </div>
+                <div class="summary-card">
+                    <h3>Unique Products</h3>
+                    <p>${uniqueProducts}</p>
+                </div>
+            `;
+
+            // Process historical data for rankings
+            const currentWeekStart = new Date(document.getElementById('weekSelector').value);
+            const weeklyData = [];
+            
+            // Get data for the last 4 weeks
+            for (let i = 0; i < 4; i++) {
+                const weekStart = new Date(currentWeekStart);
+                weekStart.setDate(weekStart.getDate() - (i * 7));
+                const weekEnd = new Date(weekStart);
+                weekEnd.setDate(weekStart.getDate() + 6);
+                
+                const weekData = historicalData.filter(row => {
+                    const rowDate = new Date(row.Transaction_Date);
+                    return rowDate >= weekStart && rowDate <= weekEnd;
+                });
+                weeklyData.push(weekData);
+            }
+
+            // Calculate current week totals for rankings
+            const productTotals = currentWeekData.reduce((acc, sale) => {
+                const key = sale.Description;
+                if (!acc[key]) {
+                    acc[key] = {
+                        name: key,
+                        quantity: 0
+                    };
+                }
+                acc[key].quantity += sale.Quantity;
+                return acc;
+            }, {});
+
+            const storeTotals = currentWeekData.reduce((acc, sale) => {
+                const key = `${sale.Store_Name} - ${sale.Location}`;
+                if (!acc[key]) {
+                    acc[key] = {
+                        name: key,
+                        quantity: 0
+                    };
+                }
+                acc[key].quantity += sale.Quantity;
+                return acc;
+            }, {});
+
+            // Rest of the ranking logic remains the same
+            const productArray = Object.values(productTotals);
+            const storeArray = Object.values(storeTotals);
+            productArray.sort((a, b) => b.quantity - a.quantity);
+            storeArray.sort((a, b) => b.quantity - a.quantity);
+
+            const top5Products = productArray.slice(0, 5);
+            const bottom5Products = productArray.slice(-5).reverse();
+            const top5Stores = storeArray.slice(0, 5);
+            const bottom5Stores = storeArray.slice(-5).reverse();
+
+            // Function to calculate weekly totals for rankings
+            function calculateWeeklyTotals(weekData, keyFn) {
+                return weekData.reduce((acc, sale) => {
+                    const key = keyFn(sale);
+                    if (!acc[key]) {
+                        acc[key] = {
+                            name: key,
+                            quantity: 0
+                        };
+                    }
+                    acc[key].quantity += sale.Quantity;
+                    return acc;
+                }, {});
+            }
+
+            // Calculate weekly rankings
+            const weeklyRankings = weeklyData.map(weekData => ({
+                products: calculateWeeklyTotals(weekData, sale => sale.Description),
+                stores: calculateWeeklyTotals(weekData, sale => `${sale.Store_Name} - ${sale.Location}`)
+            }));
+
+            // Update rankings with historical data
+            document.getElementById('topProducts').innerHTML = `
+                <div class="ranking-header">
+                    <span></span>
+                    <span>Product</span>
+                    <span>Current</span>
+                    <span>Week -1</span>
+                    <span>Week -2</span>
+                    <span>Week -3</span>
+                    <span>4wk Avg</span>
+                </div>
+                ${top5Products.map(product => 
+                    createRankingHTML(product, weeklyRankings.map(w => w.products))
+                ).join('')}
+            `;
+
+            document.getElementById('bottomProducts').innerHTML = `
+                <div class="ranking-header">
+                    <span></span>
+                    <span>Product</span>
+                    <span>Current</span>
+                    <span>Week -1</span>
+                    <span>Week -2</span>
+                    <span>Week -3</span>
+                    <span>4wk Avg</span>
+                </div>
+                ${bottom5Products.map(product => 
+                    createRankingHTML(product, weeklyRankings.map(w => w.products))
+                ).join('')}
+            `;
+
+            document.getElementById('topStores').innerHTML = `
+                <div class="ranking-header">
+                    <span></span>
+                    <span>Store</span>
+                    <span>Current</span>
+                    <span>Week -1</span>
+                    <span>Week -2</span>
+                    <span>Week -3</span>
+                    <span>4wk Avg</span>
+                </div>
+                ${top5Stores.map(store => 
+                    createRankingHTML(store, weeklyRankings.map(w => w.stores))
+                ).join('')}
+            `;
+
+            document.getElementById('bottomStores').innerHTML = `
+                <div class="ranking-header">
+                    <span></span>
+                    <span>Store</span>
+                    <span>Current</span>
+                    <span>Week -1</span>
+                    <span>Week -2</span>
+                    <span>Week -3</span>
+                    <span>4wk Avg</span>
+                </div>
+                ${bottom5Stores.map(store => 
+                    createRankingHTML(store, weeklyRankings.map(w => w.stores))
+                ).join('')}
+            `;
+        }
+
+        function clearAllFilters() {
+            // Clear all active filters
+            Object.keys(activeFilters).forEach(key => {
+                activeFilters[key].clear();
+            });
+            
+            // Reset the filter icons (optional visual feedback)
+            document.querySelectorAll('.filter-icon').forEach(icon => {
+                icon.style.color = 'rgba(255, 255, 255, 0.8)';
+            });
+            
+            // Reapply filters (which will now show all data)
+            applyFilters();
+        }
+
+        // Function to create ranking HTML with historical data
+        function createRankingHTML(item, weeklyValues) {
+            const quantities = weeklyValues.map(week => week[item.name]?.quantity || 0);
+            const average = Math.ceil(quantities.reduce((a, b) => a + b, 0) / quantities.length);
+            const trend = quantities[0] > quantities[1] ? 'up' : 'down';
+            
+            return `
+                <li class="ranking-item">
+                    <span class="trend-indicator ${trend === 'up' ? 'trend-up' : 'trend-down'}">
+                        <i class="fas fa-arrow-${trend}"></i>
+                    </span>
+                    <span class="product-name">${item.name}</span>
+                    <span class="quantity-cell current-quantity">
+                        ${item.quantity.toLocaleString()}
+                    </span>
+                    ${quantities.slice(1).map(q => 
+                        `<span class="quantity-cell historical-quantity">${q.toLocaleString()}</span>`
+                    ).join('')}
+                    <span class="quantity-cell average-quantity">
+                        ${average.toLocaleString()}
+                    </span>
+                </li>
+            `;
+        }
+
+        // Convert logo to base64 for PDF export
+        const logoImg = document.createElement('img');
+        logoImg.src = '/logo';
+        logoImg.onload = function() {
+            const canvas = document.createElement('canvas');
+            canvas.width = logoImg.width;
+            canvas.height = logoImg.height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(logoImg, 0, 0);
+            window.logoBase64 = canvas.toDataURL('image/jpeg').split(',')[1];
+        };
+
+        function exportToExcel() {
+            const pivotedData = pivotDataByDate(allData);
+            const wb = XLSX.utils.book_new();
+            
+            // Create worksheet with pivoted data
+            const ws = XLSX.utils.json_to_sheet(pivotedData);
+            
+            // Add column widths
+            const colWidths = [
+                { wch: 20 }, // Store
+                { wch: 20 }, // Location
+                { wch: 30 }, // Product
+                { wch: 15 }, // Source
+            ];
+            // Add width for each date column
+            const dates = [...new Set(allData.map(row => new Date(row.Transaction_Date).toLocaleDateString()))];
+            dates.forEach(() => colWidths.push({ wch: 12 }));
+            ws['!cols'] = colWidths;
+
+            XLSX.utils.book_append_sheet(wb, ws, 'Sales Data');
+            XLSX.writeFile(wb, 'actual_sales.xlsx');
+        }
+
+        function exportToPDF() {
+            const pivotedData = pivotDataByDate(allData);
+            const dates = [...new Set(allData.map(sale => sale.Transaction_Date.split('T')[0]))].sort();
+            
+            // Calculate dynamic column widths based on content
+            const columnWidths = ['auto', 'auto', '*', 'auto'];
+            dates.forEach(() => columnWidths.push('auto'));
+            columnWidths.push('auto'); // For total column
+
+            const docDefinition = {
+                pageOrientation: 'landscape',
+                pageSize: 'A4',
+                pageMargins: [20, 40, 20, 20],
+                header: {
+                    columns: [
+                        {
+                            image: 'data:image/jpeg;base64,' + window.logoBase64,
+                            width: 100,
+                            margin: [10, 10]
+                        },
+                        {
+                            text: 'Actual Sales Report',
+                            alignment: 'right',
+                            margin: [0, 20, 10, 0],
+                            fontSize: 16,
+                            bold: true
+                        }
+                    ]
+                },
+                content: [
+                    {
+                        text: `Report Period: ${document.getElementById('weekSelector').value} to ${document.getElementById('endDate').value}`,
+                        margin: [0, 0, 0, 10]
+                    },
+                    {
+                        table: {
+                            headerRows: 1,
+                            widths: columnWidths,
+                            body: [
+                                [
+                                    { text: 'Store', style: 'tableHeader' },
+                                    { text: 'Location', style: 'tableHeader' },
+                                    { text: 'Product', style: 'tableHeader' },
+                                    { text: 'Source', style: 'tableHeader' },
+                                    ...dates.map(date => ({
+                                        text: `${new Date(date).toLocaleDateString()}\n${new Date(date).toLocaleDateString('en-US', { weekday: 'short' })}`,
+                                        style: 'tableHeader',
+                                        alignment: 'center'
+                                    })),
+                                    { text: 'Total', style: 'tableHeader', alignment: 'center' }
+                                ],
+                                ...pivotedData.map(row => [
+                                    { text: row.Store_Name, fontSize: 8 },
+                                    { text: row.Location, fontSize: 8 },
+                                    { text: row.Description, fontSize: 8 },
+                                    { text: row.Source, fontSize: 8 },
+                                    ...dates.map(date => ({
+                                        text: (row[date] || 0).toLocaleString(),
+                                        alignment: 'right',
+                                        fontSize: 8
+                                    })),
+                                    {
+                                        text: row.Total.toLocaleString(),
+                                        bold: true,
+                                        alignment: 'right',
+                                        fontSize: 8
+                                    }
+                                ])
+                            ]
+                        },
+                        layout: {
+                            hLineWidth: function(i, node) {
+                                return (i === 0 || i === 1 || i === node.table.body.length) ? 1 : 0.5;
+                            },
+                            vLineWidth: function(i, node) {
+                                return (i === 0 || i === node.table.widths.length) ? 1 : 0.5;
+                            },
+                            hLineColor: function(i, node) {
+                                return (i === 0 || i === 1 || i === node.table.body.length) ? '#4CAF50' : '#dddddd';
+                            },
+                            vLineColor: function(i, node) {
+                                return (i === 0 || i === node.table.widths.length) ? '#4CAF50' : '#dddddd';
+                            },
+                            fillColor: function(rowIndex, node, columnIndex) {
+                                if (rowIndex === 0) return '#4CAF50';
+                                if (columnIndex === node.table.widths.length - 1) return '#f5f5f5';
+                                return null;
+                            },
+                            paddingLeft: function(i) { return 4; },
+                            paddingRight: function(i) { return 4; },
+                            paddingTop: function(i) { return 3; },
+                            paddingBottom: function(i) { return 3; }
+                        }
+                    }
+                ],
+                styles: {
+                    tableHeader: {
+                        fontSize: 9,
+                        bold: true,
+                        color: 'white'
+                    }
+                },
+                defaultStyle: {
+                    fontSize: 8
+                }
+            };
+
+            pdfMake.createPdf(docDefinition).download('actual_sales.pdf');
+        }
+
+        function pivotDataByDate(data) {
+            // Get unique dates and sort them
+            const dates = [...new Set(data.map(sale => sale.Transaction_Date.split('T')[0]))].sort();
+            
+            const pivoted = {};
+            
+            // Create unique key for each store-product combination
+            data.forEach(row => {
+                const key = `${row.Store_Name}|${row.Location}|${row.Description}|${row.Source}`;
+                const date = row.Transaction_Date.split('T')[0];
+                
+                if (!pivoted[key]) {
+                    pivoted[key] = {
+                        Store_Name: row.Store_Name,
+                        Location: row.Location,
+                        Description: row.Description,
+                        Source: row.Source
+                    };
+                    // Initialize all dates with 0
+                    dates.forEach(d => {
+                        pivoted[key][d] = 0;
+                    });
+                }
+                
+                pivoted[key][date] = row.Quantity;
+            });
+
+            // Calculate and add total for each row
+            Object.values(pivoted).forEach(row => {
+                row.Total = dates.reduce((sum, date) => sum + (row[date] || 0), 0);
+            });
+            
+            return Object.values(pivoted);
+        }
+
+        function getMostRecentWeekRange() {
+            // Create date in AEST (UTC+10)
+            const now = new Date();
+            const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+            const today = new Date(utc + (3600000 * 10)); // AEST time
+            
+            // Find the most recent Saturday by working backwards
+            const lastSaturday = new Date(today);
+            while (lastSaturday.getDay() !== 6) { // Keep going back until we hit a Saturday
+                lastSaturday.setDate(lastSaturday.getDate() - 1);
+            }
+            
+            // Calculate the start date (6 days before the Saturday)
+            const weekStart = new Date(lastSaturday);
+            weekStart.setDate(weekStart.getDate() - 6);
+            
+            // Format dates in YYYY-MM-DD format
+            return {
+                start: weekStart.toISOString().split('T')[0],
+                end: lastSaturday.toISOString().split('T')[0]
+            };
+        }
+
+        // Initialize with most recent completed week (ending Saturday)
+        document.addEventListener('DOMContentLoaded', () => {
+            const weekSelector = document.getElementById('weekSelector');
+            const endDateInput = document.getElementById('endDate');
+            
+            // Create date in AEST
+            const now = new Date();
+            const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+            const today = new Date(utc + (3600000 * 10)); // AEST time
+
+            // Set min and max dates for start date
+            const minDate = new Date(today);
+            minDate.setFullYear(minDate.getFullYear() - 1); // Allow up to 1 year back
+            weekSelector.min = minDate.toISOString().split('T')[0];
+            weekSelector.max = today.toISOString().split('T')[0];
+
+            // Set initial dates to most recent completed week
+            const defaultWeek = getMostRecentWeekRange();
+            weekSelector.value = defaultWeek.start;
+            endDateInput.value = defaultWeek.end;
+            
+            updateDateRange(defaultWeek.start);
+            fetchSalesData();
+
+            // Add event listener for end date changes
+            endDateInput.addEventListener('change', () => {
+                if (endDateInput.value < weekSelector.value) {
+                    endDateInput.value = weekSelector.value;
+                }
+                fetchSalesData();
+            });
+        });
+    </script>
+</body>
+</html> 

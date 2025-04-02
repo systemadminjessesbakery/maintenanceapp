@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Guide - Jesse's Bakery Management System</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f5f5;
+            line-height: 1.6;
+        }
+
+        .header {
+            background-color: #4CAF50;
+            color: white;
+            padding: 1rem;
+            display: flex;
+            align-items: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+        }
+
+        .logo {
+            max-width: 100px;
+            margin-right: 1rem;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+        }
+
+        .guide-section {
+            background: white;
+            border-radius: 8px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .guide-section h2 {
+            color: #4CAF50;
+            margin-top: 0;
+            border-bottom: 2px solid #4CAF50;
+            padding-bottom: 0.5rem;
+        }
+
+        .guide-section h3 {
+            color: #333;
+            margin-top: 1.5rem;
+        }
+
+        .guide-section p {
+            color: #666;
+            margin-bottom: 1rem;
+        }
+
+        .guide-section ul {
+            margin-left: 1.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .guide-section li {
+            margin-bottom: 0.5rem;
+        }
+
+        .note {
+            background-color: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 1rem;
+            margin: 1rem 0;
+        }
+
+        .tip {
+            background-color: #d4edda;
+            border-left: 4px solid #28a745;
+            padding: 1rem;
+            margin: 1rem 0;
+        }
+
+        .warning {
+            background-color: #f8d7da;
+            border-left: 4px solid #dc3545;
+            padding: 1rem;
+            margin: 1rem 0;
+        }
+
+        .footer {
+            background-color: #333;
+            color: white;
+            padding: 1rem;
+            text-align: center;
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+        }
+
+        .footer a {
+            color: white;
+            text-decoration: none;
+            margin: 0 1rem;
+        }
+
+        .footer a:hover {
+            text-decoration: underline;
+        }
+
+        .nav-menu {
+            position: sticky;
+            top: 1rem;
+            background: white;
+            padding: 1rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 2rem;
+        }
+
+        .nav-menu ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .nav-menu li {
+            margin-bottom: 0.5rem;
+        }
+
+        .nav-menu a {
+            color: #4CAF50;
+            text-decoration: none;
+            display: block;
+            padding: 0.5rem;
+            border-radius: 4px;
+        }
+
+        .nav-menu a:hover {
+            background-color: #f0f0f0;
+        }
+    </style>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="header">
+        <div class="header-left">
+            <img src="/logo" alt="Jesse's Bakery Logo" class="logo">
+            <h1>User Guide</h1>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="nav-menu">
+            <h3>Quick Navigation</h3>
+            <ul>
+                <li><a href="#stores-master">Stores Master</a></li>
+                <li><a href="#products-master">Products Master</a></li>
+                <li><a href="#standing-orders">Standing Orders</a></li>
+                <li><a href="#adjustments">Adjustments</a></li>
+                <li><a href="#final-production">Final Production</a></li>
+                <li><a href="#final-delivery">Final Delivery</a></li>
+            </ul>
+        </div>
+
+        <div id="stores-master" class="guide-section">
+            <h2>Stores Master</h2>
+            <p>The Stores Master section allows you to manage all store-related information and delivery schedules.</p>
+            
+            <h3>Adding a New Store</h3>
+            <ol>
+                <li>Click the "Add New Store" button in the top menu</li>
+                <li>Fill in the required fields:
+                    <ul>
+                        <li>Store ID (unique identifier)</li>
+                        <li>Store Name</li>
+                        <li>Address</li>
+                        <li>Region</li>
+                        <li>State</li>
+                    </ul>
+                </li>
+                <li>Set delivery days by checking the appropriate boxes (Sunday through Saturday)</li>
+                <li>Set special delivery days if applicable</li>
+                <li>Click "Save" to create the store</li>
+            </ol>
+
+            <h3>Editing Store Information</h3>
+            <p>You can edit any store's information by:</p>
+            <ol>
+                <li>Clicking on any field in the store's row</li>
+                <li>Making the necessary changes</li>
+                <li>Clicking outside the field to save changes</li>
+            </ol>
+
+            <div class="tip">
+                <strong>Tip:</strong> Use the search and filter options to quickly find specific stores.
+            </div>
+        </div>
+
+        <div id="products-master" class="guide-section">
+            <h2>Products Master</h2>
+            <p>The Products Master section manages your product catalog, including pricing and specifications.</p>
+            
+            <h3>Adding a New Product</h3>
+            <ol>
+                <li>Click the "Add New Product" button</li>
+                <li>Fill in the required fields:
+                    <ul>
+                        <li>Product ID (unique identifier)</li>
+                        <li>Product Description</li>
+                        <li>Product Family (category)</li>
+                    </ul>
+                </li>
+                <li>Add retailer-specific codes (Woolworths, Coles, etc.)</li>
+                <li>Set baking specifications:
+                    <ul>
+                        <li>Baking UOM (Unit of Measure)</li>
+                        <li>Baking Quantity</li>
+                        <li>Unit Per Product</li>
+                    </ul>
+                </li>
+                <li>Enter pricing information:
+                    <ul>
+                        <li>Wholesale Cost (AUD)</li>
+                        <li>RRP (AUD)</li>
+                    </ul>
+                </li>
+                <li>Add Production Description if different from regular description</li>
+                <li>Click "Save" to create the product</li>
+            </ol>
+
+            <div class="note">
+                <strong>Note:</strong> All monetary values should be entered in Australian Dollars (AUD).
+            </div>
+        </div>
+
+        <div id="standing-orders" class="guide-section">
+            <h2>Standing Orders</h2>
+            <p>Manage regular delivery orders for each store-product combination.</p>
+            
+            <h3>Creating a Standing Order</h3>
+            <ol>
+                <li>Click "Add New Standing Order"</li>
+                <li>Select the store from the dropdown</li>
+                <li>Select the product from the dropdown</li>
+                <li>Enter quantities for each day of the week</li>
+                <li>The week total will be calculated automatically</li>
+                <li>Click "Save" to create the standing order</li>
+            </ol>
+
+            <h3>Modifying Standing Orders</h3>
+            <p>You can modify existing standing orders by:</p>
+            <ol>
+                <li>Clicking on any quantity field</li>
+                <li>Entering the new quantity</li>
+                <li>Changes are saved automatically</li>
+            </ol>
+
+            <div class="warning">
+                <strong>Warning:</strong> Changes to standing orders will affect future delivery schedules.
+            </div>
+        </div>
+
+        <div id="adjustments" class="guide-section">
+            <h2>Adjustments</h2>
+            <p>Make temporary modifications to delivery quantities for specific stores and products.</p>
+            
+            <h3>Creating an Adjustment</h3>
+            <ol>
+                <li>Click "Add New Adjustment"</li>
+                <li>Select the store and product</li>
+                <li>Enter adjustment quantities for each day</li>
+                <li>The week total will be calculated automatically</li>
+                <li>Click "Save" to create the adjustment</li>
+            </ol>
+
+            <div class="tip">
+                <strong>Tip:</strong> Use adjustments for temporary changes, while standing orders are for regular patterns.
+            </div>
+        </div>
+
+        <div id="final-production" class="guide-section">
+            <h2>Final Production</h2>
+            <p>View and manage the final production numbers for each product.</p>
+            
+            <h3>Viewing Production Numbers</h3>
+            <ul>
+                <li>Use the filters to view specific stores or products</li>
+                <li>Daily quantities are displayed in the table</li>
+                <li>Week totals are calculated automatically</li>
+            </ul>
+
+            <h3>Exporting Production Data</h3>
+            <ol>
+                <li>Click "Export to Excel" for spreadsheet format</li>
+                <li>Click "Export to PDF" for printable format</li>
+            </ol>
+        </div>
+
+        <div id="final-delivery" class="guide-section">
+            <h2>Final Delivery</h2>
+            <p>View and manage the final delivery schedules for each store.</p>
+            
+            <h3>Viewing Delivery Schedules</h3>
+            <ul>
+                <li>Use the filters to view specific stores or products</li>
+                <li>Daily delivery quantities are displayed in the table</li>
+                <li>Week totals are calculated automatically</li>
+            </ul>
+
+            <h3>Exporting Delivery Data</h3>
+            <ol>
+                <li>Click "Export to Excel" for spreadsheet format</li>
+                <li>Click "Export to PDF" for printable format</li>
+            </ol>
+
+            <div class="note">
+                <strong>Note:</strong> Final delivery numbers are calculated based on standing orders and adjustments.
+            </div>
+        </div>
+    </div>
+
+    <div class="footer">
+        <a href="index.html"><i class="fas fa-home"></i> Back to Main Menu</a>
+        <a href="mailto:support@jessesbakery.com"><i class="fas fa-envelope"></i> Contact Support</a>
+    </div>
+</body>
+</html> 
