@@ -1,5 +1,6 @@
 [config]
-command=deploy.cmd
+command=bash -c "npm install"
+post.deployment.command=bash -c "npm start"
 SCM_DO_BUILD_DURING_DEPLOYMENT=1
 ENABLE_ORYX_BUILD=false
 WEBSITE_NODE_DEFAULT_VERSION=18.20.7
