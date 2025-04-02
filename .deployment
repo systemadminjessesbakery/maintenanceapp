@@ -1,9 +1,7 @@
 [config]
-command=bash startup.sh
-WEBSITE_NODE_DEFAULT_VERSION=18.20.7
-NODE_ENV=production
+command=npm install --production && npm start
 SCM_DO_BUILD_DURING_DEPLOYMENT=true
 ENABLE_ORYX_BUILD=false
-SCM_COMMAND_IDLE_TIMEOUT=120
-WEBSITES_PORT=8080
+WEBSITE_NODE_DEFAULT_VERSION=18.20.7
+NODE_ENV=production
 PORT=8080
