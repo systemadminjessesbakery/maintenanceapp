@@ -248,10 +248,6 @@
                             title: {
                                 display: true,
                                 text: `Weekly Performance Comparison - ${selectedRegion}`
-                            },
-                            legend: {
-                                display: true,
-                                position: 'top'
                             }
                         }
                     }
@@ -259,17 +255,13 @@
                 console.log('Chart updated successfully');
             }
 
-            // Event listeners
-            table.on('draw', updateRegionDropdown);
             $('#regionSelect').on('change', function() {
                 selectedRegion = $(this).val();
                 updateChart();
             });
 
-            // Initial data load
-            console.log('Starting initial data load...');
+            // Initial fetch and setup
             fetchData();
-            setInterval(fetchData, 300000); // Refresh every 5 minutes
         });
     </script>
 </body>
