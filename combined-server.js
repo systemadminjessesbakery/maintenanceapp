@@ -68,7 +68,8 @@ const staticPages = [
     'final-production.html',
     'final-delivery.html',
     'region-uplift.html',
-    'actual-sales.html'
+    'actual-sales.html',
+    'regional-performance.html'
 ];
 
 staticPages.forEach(page => {
@@ -745,7 +746,20 @@ app.get('/api/actual-sales', async (req, res) => {
 app.get('/api/regional-performance', async (req, res) => {
     try {
         const result = await pool.request()
-            .query('SELECT [Week_Label], [Region], [Sunday], [Monday], [Tuesday], [Wednesday], [Thursday], [Friday], [Saturday], [Total_Week_Quantity] FROM [dbo].[vw_Cumulative_Weekly_Region_Sales]');
+            .query(`
+                SELECT [Week_Label]
+                    ,[Region]
+                    ,[Sunday]
+                    ,[Monday]
+                    ,[Tuesday]
+                    ,[Wednesday]
+                    ,[Thursday]
+                    ,[Friday]
+                    ,[Saturday]
+                    ,[Total_Week_Quantity]
+                FROM [dbo].[vw_Cumulative_Weekly_Region_Sales]
+                ORDER BY Week_Label DESC, Region
+            `);
         res.json(result.recordset);
     } catch (err) {
         console.error('Error fetching regional performance data:', err);
