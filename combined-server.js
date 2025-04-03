@@ -74,7 +74,18 @@ const staticPages = [
 
 staticPages.forEach(page => {
     app.get(`/${page}`, (req, res) => {
-        res.sendFile(path.join(__dirname, page));
+        const filePath = path.join(__dirname, page);
+        console.log(`Attempting to serve static file: ${filePath}`);
+        res.sendFile(filePath, (err) => {
+            if (err) {
+                console.error(`Error sending file ${filePath}:`, err);
+                if (!res.headersSent) {
+                    res.status(err.status || 500).end();
+                }
+            } else {
+                console.log(`Successfully served static file: ${filePath}`);
+            }
+        });
     });
 });
 
@@ -126,7 +137,7 @@ pool.on('error', err => {
 // Add connection pool monitoring with enhanced error handling
 setInterval(async () => {
     try {
-        const poolStatus = await pool.request().query('SELECT 1');
+        await pool.request().query('SELECT 1'); // Simplified check
         console.log('Database connection pool is healthy:', {
             pool_size: pool.pool.size,
             available: pool.pool.available,
@@ -135,7 +146,7 @@ setInterval(async () => {
         });
     } catch (err) {
         console.error('Database connection pool health check failed:', err);
-        // Enhanced error logging
+        // Log details, but remove reconnection logic from here
         console.error('Error details:', {
             code: err.code,
             number: err.number,
@@ -145,14 +156,14 @@ setInterval(async () => {
             serverName: err.serverName,
             procName: err.procName
         });
-        // Try to reconnect
-        try {
-            await pool.close();
-            await pool.connect();
-            console.log('Successfully reconnected to database');
-        } catch (reconnectErr) {
-            console.error('Failed to reconnect to database:', reconnectErr);
-        }
+        // // Try to reconnect  <-- REMOVED
+        // try {            <-- REMOVED
+        //     await pool.close(); <-- REMOVED
+        //     await pool.connect(); <-- REMOVED
+        //     console.log('Successfully reconnected to database'); <-- REMOVED
+        // } catch (reconnectErr) { <-- REMOVED
+        //     console.error('Failed to reconnect to database:', reconnectErr); <-- REMOVED
+        // } <-- REMOVED
     }
 }, 30000);  // Check every 30 seconds
 
@@ -209,6 +220,9 @@ app.use((err, req, res, next) => {
     res.status(500).json({ error: 'Internal Server Error' });
 });
 
+// Add favicon handler to prevent 404s
+app.get('/favicon.ico', (req, res) => res.status(204).end());
+
 // Start the server
 startServer().catch(err => {
     console.error('Failed to start application:', err);
@@ -216,6 +230,27 @@ startServer().catch(err => {
         appInsights.defaultClient.trackException({ exception: err });
     }
     process.exit(1);
+});
+
+// Global error handlers
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  if (appInsights.defaultClient) {
+      appInsights.defaultClient.trackException({ 
+          exception: reason instanceof Error ? reason : new Error(JSON.stringify(reason))
+      });
+  }
+  // Optional: exit process, but consider if App Service handles restarts better
+  // process.exit(1); 
+});
+
+process.on('uncaughtException', (err, origin) => {
+  console.error(`Caught exception: ${err}\n` + `Exception origin: ${origin}`);
+  if (appInsights.defaultClient) {
+      appInsights.defaultClient.trackException({ exception: err });
+  }
+  // Optional: exit process
+  // process.exit(1);
 });
 
 // API endpoints
