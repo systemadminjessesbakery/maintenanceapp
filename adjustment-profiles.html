@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Adjustment Profile Selections - Jesse's Bakery</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        body { padding-top: 56px; background-color: #f8f9fa; }
+        .container-fluid { padding: 2rem; }
+        .table th, .table td { vertical-align: middle; }
+        .table select.form-select {
+            min-width: 150px;
+            padding: 0.3rem 0.5rem;
+            font-size: 0.9rem;
+        }
+        .status-message {
+            margin-top: 1rem;
+            padding: 0.75rem 1.25rem;
+            border-radius: 0.25rem;
+            display: none; /* Hidden by default */
+        }
+        .status-message.success {
+            color: #155724;
+            background-color: #d4edda;
+            border-color: #c3e6cb;
+        }
+        .status-message.error {
+            color: #721c24;
+            background-color: #f8d7da;
+            border-color: #f5c6cb;
+        }
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            font-style: italic;
+        }
+        .card {
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">Jesse's Bakery</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">Home</a>
+                    </li>
+                    <!-- Add other nav links if needed -->
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid">
+        <h2 class="mb-4">Adjustment Profile Selections</h2>
+        <div id="status-message" class="status-message"></div>
+        <div id="loading" class="loading">Loading data...</div>
+        
+        <div class="card">
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table id="profilesTable" class="table table-bordered table-striped" style="display: none;"> <!-- Hidden initially -->
+                        <thead class="table-light">
+                            <tr>
+                                <th>Store ID</th>
+                                <th>Store Name</th>
+                                <th>Sunday</th>
+                                <th>Monday</th>
+                                <th>Tuesday</th>
+                                <th>Wednesday</th>
+                                <th>Thursday</th>
+                                <th>Friday</th>
+                                <th>Saturday</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Data will be populated here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        $(document).ready(function() {
+            let selectionsData = [];
+            let availableProfiles = [];
+            const daysOfWeek = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
+
+            function showStatusMessage(message, isSuccess) {
+                const statusDiv = $('#status-message');
+                statusDiv.text(message);
+                statusDiv.removeClass('success error').addClass(isSuccess ? 'success' : 'error');
+                statusDiv.fadeIn();
+                setTimeout(() => {
+                    statusDiv.fadeOut();
+                }, 5000); // Hide after 5 seconds
+            }
+
+            async function fetchData() {
+                console.log('Fetching adjustment profiles data...');
+                $('#loading').show();
+                $('#profilesTable').hide();
+
+                try {
+                    const response = await fetch('/api/adjustment-profiles');
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+                    }
+                    const data = await response.json();
+                    selectionsData = data.selections || [];
+                    availableProfiles = data.profileNames || [];
+                    console.log(`Received ${selectionsData.length} selections and ${availableProfiles.length} profiles.`);
+                    populateTable();
+                } catch (error) {
+                    console.error('Error fetching data:', error);
+                    showStatusMessage(`Error loading data: ${error.message}`, false);
+                    $('#loading').text('Error loading data. Please try again later.');
+                } finally {
+                    $('#loading').hide();
+                    $('#profilesTable').show();
+                }
+            }
+
+            function populateTable() {
+                const tableBody = $('#profilesTable tbody');
+                tableBody.empty(); // Clear existing rows
+
+                if (selectionsData.length === 0) {
+                    tableBody.append('<tr><td colspan="9" class="text-center">No profile selections found.</td></tr>');
+                    return;
+                }
+
+                selectionsData.forEach(item => {
+                    let rowHtml = `<tr>
+                        <td>${item.Store_ID}</td>
+                        <td>${item.Store_Name}</td>`;
+
+                    daysOfWeek.forEach(day => {
+                        rowHtml += `<td>${createProfileDropdown(item.Store_ID, day, item[day])}</td>`;
+                    });
+
+                    rowHtml += `</tr>`;
+                    tableBody.append(rowHtml);
+                });
+
+                // Add change listener after dropdowns are added to the DOM
+                tableBody.find('.profile-select').on('change', handleProfileChange);
+            }
+
+            function createProfileDropdown(storeId, day, selectedProfile) {
+                let optionsHtml = '<option value="">- Select -</option>'; // Default empty option
+                availableProfiles.forEach(profile => {
+                    const isSelected = profile === selectedProfile ? ' selected' : '';
+                    optionsHtml += `<option value="${profile}"${isSelected}>${profile}</option>`;
+                });
+
+                return `<select class="form-select form-select-sm profile-select" 
+                                data-store-id="${storeId}" 
+                                data-day="${day}" 
+                                data-original-value="${selectedProfile || ''}">
+                            ${optionsHtml}
+                        </select>`;
+            }
+
+            async function handleProfileChange() {
+                const selectElement = $(this);
+                const storeId = selectElement.data('store-id');
+                const day = selectElement.data('day');
+                const newProfile = selectElement.val();
+                const originalProfile = selectElement.data('original-value');
+
+                console.log(`Profile change detected: Store=${storeId}, Day=${day}, NewValue=${newProfile}, Original=${originalProfile}`);
+
+                // No change if the value is the same
+                if (newProfile === originalProfile) {
+                    return; 
+                }
+
+                // Optimistic UI update (or wait for success?)
+                // For now, let's wait for success before updating data-original-value
+                selectElement.prop('disabled', true); // Disable dropdown during update
+
+                try {
+                    const response = await fetch('/api/adjustment-profiles/update', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ 
+                            Store_ID: storeId, 
+                            DayOfWeek: day, 
+                            NewProfileName: newProfile 
+                        })
+                    });
+
+                    const result = await response.json();
+
+                    if (!response.ok || !result.success) {
+                        throw new Error(result.error || 'Failed to update profile');
+                    }
+
+                    showStatusMessage(`Successfully updated ${day} profile for ${storeId}.`, true);
+                    // Update the original value marker on success
+                    selectElement.data('original-value', newProfile);
+
+                } catch (error) {
+                    console.error('Error updating profile:', error);
+                    showStatusMessage(`Error updating profile for ${storeId} (${day}): ${error.message}`, false);
+                    // Revert dropdown to original value on error
+                    selectElement.val(originalProfile);
+                } finally {
+                    selectElement.prop('disabled', false); // Re-enable dropdown
+                }
+            }
+
+            // Initial data load
+            fetchData();
+        });
+    </script>
+
+</body>
+</html> 

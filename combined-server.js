@@ -846,6 +846,81 @@ app.get('/api/regional-performance', async (req, res) => {
     }
 });
 
+// Adjustment Profile Selections endpoints
+app.get('/api/adjustment-profiles', async (req, res) => {
+    console.log('Received request for /api/adjustment-profiles');
+    try {
+        // Fetch profile selections
+        const selectionsResult = await pool.request()
+            .query(`
+                SELECT [Store_ID], [Store_Name], [SUNDAY], [MONDAY], [TUESDAY], 
+                       [WEDNESDAY], [THURSDAY], [FRIDAY], [SATURDAY]
+                FROM [dbo].[Adjustment_Profile_Selections]
+                ORDER BY Store_Name;
+            `);
+        console.log(`Profile selections query returned ${selectionsResult.recordset.length} rows`);
+
+        // Fetch available profile names (column names from Products_Standard_Baskets)
+        const profileNamesResult = await pool.request()
+            .query(`
+                SELECT COLUMN_NAME
+                FROM INFORMATION_SCHEMA.COLUMNS
+                WHERE TABLE_NAME = 'Products_Standard_Baskets'
+                  AND TABLE_SCHEMA = 'dbo' 
+                  AND ORDINAL_POSITION >= (
+                      SELECT ORDINAL_POSITION 
+                      FROM INFORMATION_SCHEMA.COLUMNS 
+                      WHERE TABLE_NAME = 'Products_Standard_Baskets' AND TABLE_SCHEMA = 'dbo' AND COLUMN_NAME = 'All_Small'
+                  )
+                ORDER BY ORDINAL_POSITION;
+            `);
+        const profileNames = profileNamesResult.recordset.map(row => row.COLUMN_NAME);
+        console.log(`Found ${profileNames.length} available profile names:`, profileNames);
+
+        res.json({
+            selections: selectionsResult.recordset,
+            profileNames: profileNames
+        });
+
+    } catch (err) {
+        console.error('Error fetching adjustment profiles:', err);
+        res.status(500).json({ error: 'Error fetching adjustment profile data' });
+    }
+});
+
+app.post('/api/adjustment-profiles/update', async (req, res) => {
+    const { Store_ID, DayOfWeek, NewProfileName } = req.body;
+    console.log(`Received update request for Store_ID: ${Store_ID}, Day: ${DayOfWeek}, Profile: ${NewProfileName}`);
+
+    // Validate DayOfWeek to prevent SQL injection
+    const validDays = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
+    if (!validDays.includes(DayOfWeek)) {
+        console.error('Invalid DayOfWeek received:', DayOfWeek);
+        return res.status(400).json({ error: 'Invalid DayOfWeek specified' });
+    }
+
+    try {
+        // We need to construct the query carefully as the column name is dynamic
+        // The mssql library handles parameterization for values, protecting against injection there.
+        const request = pool.request();
+        request.input('Store_ID', sql.VarChar, Store_ID);
+        request.input('NewProfileName', sql.VarChar, NewProfileName); 
+
+        // Construct the dynamic part of the SET clause safely
+        const updateQuery = `UPDATE [dbo].[Adjustment_Profile_Selections] SET [${DayOfWeek}] = @NewProfileName WHERE [Store_ID] = @Store_ID;`;
+        
+        console.log('Executing update query:', updateQuery);
+        await request.query(updateQuery);
+        
+        console.log(`Successfully updated profile for Store_ID: ${Store_ID}, Day: ${DayOfWeek}`);
+        res.json({ success: true, message: 'Profile updated successfully' });
+
+    } catch (err) {
+        console.error('Error updating adjustment profile:', err);
+        res.status(500).json({ error: 'Error updating adjustment profile' });
+    }
+});
+
 // Serve logo
 app.get('/logo', (req, res) => {
     res.sendFile(path.join(__dirname, 'logo.jpg'));
