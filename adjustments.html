@@ -225,15 +225,16 @@
             border-radius: 5px;
             display: none;
             z-index: 1000;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
         }
 
-        .status-success {
+        .status-message.success {
             background-color: #d4edda;
             color: #155724;
             border: 1px solid #c3e6cb;
         }
 
-        .status-error {
+        .status-message.error {
             background-color: #f8d7da;
             color: #721c24;
             border: 1px solid #f5c6cb;
@@ -334,22 +335,26 @@
         let activeFilters = {};
 
         function showStatusMessage(message, isSuccess) {
-            const statusDiv = document.createElement('div');
-            statusDiv.className = `status-message ${isSuccess ? 'status-success' : 'status-error'}`;
+            const statusDiv = document.getElementById('status-message');
+            if (!statusDiv) {
+                console.error('Status message div not found');
+                return;
+            }
             statusDiv.textContent = message;
-            document.body.appendChild(statusDiv);
+            statusDiv.className = 'status-message ' + (isSuccess ? 'success' : 'error');
             statusDiv.style.display = 'block';
             setTimeout(() => {
-                statusDiv.style.opacity = '0';
-                setTimeout(() => statusDiv.remove(), 300);
-            }, 3000);
+                statusDiv.style.display = 'none';
+            }, 5000);
         }
 
         async function fetchData() {
+            console.log('Fetching adjustments data...');
             const loading = document.getElementById('loading');
             loading.style.display = 'block';
             
             try {
+                console.log('Making API request to /api/adjustments...');
                 const response = await fetch('/api/adjustments', {
                     method: 'GET',
                     headers: {
@@ -358,14 +363,22 @@
                 });
                 
                 if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
+                    const errorText = await response.text();
+                    console.error('API request failed:', response.status, errorText);
+                    throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
                 }
                 
+                console.log('API request successful, parsing response...');
                 const data = await response.json();
                 
                 if (!data || !data.adjustments || !Array.isArray(data.adjustments)) {
+                    console.error('Invalid data format received:', data);
                     throw new Error('Invalid data format received from server');
                 }
+                
+                console.log(`Received ${data.adjustments.length} adjustments`);
+                console.log(`Received ${data.stores?.length || 0} stores`);
+                console.log(`Received ${data.products?.length || 0} products`);
                 
                 adjustments = data.adjustments;
                 stores = data.stores || [];
@@ -377,6 +390,7 @@
                 updateProductSelect();
                 
                 loading.style.display = 'none';
+                console.log('Data loaded and displayed successfully');
             } catch (error) {
                 console.error('Error fetching data:', error);
                 loading.innerHTML = `<div class="error">Error loading data: ${error.message}</div>`;

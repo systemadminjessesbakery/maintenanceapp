@@ -289,10 +289,12 @@
         let activeFilters = {};
 
         async function fetchData() {
+            console.log('Fetching final delivery data...');
             const loading = document.getElementById('loading');
             loading.style.display = 'block';
 
             try {
+                console.log('Making API request to /api/final-deliveries...');
                 const response = await fetch('/api/final-deliveries', {
                     method: 'GET',
                     headers: {
@@ -301,14 +303,20 @@
                 });
 
                 if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
+                    const errorText = await response.text();
+                    console.error('API request failed:', response.status, errorText);
+                    throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
                 }
 
+                console.log('API request successful, parsing response...');
                 const data = await response.json();
+                console.log(`Received ${data.length} records`);
+                
                 allData = data;
                 updateMetrics(data);
                 populateTable(data);
                 loading.style.display = 'none';
+                console.log('Data loaded and displayed successfully');
             } catch (error) {
                 console.error('Error fetching data:', error);
                 loading.innerHTML = `<div class="error">Error loading data: ${error.message}</div>`;
@@ -500,12 +508,16 @@
 
         function showStatusMessage(message, isSuccess) {
             const statusDiv = document.getElementById('status-message');
+            if (!statusDiv) {
+                console.error('Status message div not found');
+                return;
+            }
             statusDiv.textContent = message;
-            statusDiv.className = 'status-message ' + (isSuccess ? 'status-success' : 'status-error');
+            statusDiv.className = 'status-message ' + (isSuccess ? 'success' : 'error');
             statusDiv.style.display = 'block';
             setTimeout(() => {
                 statusDiv.style.display = 'none';
-            }, 3000);
+            }, 5000);
         }
 
         function exportToExcel() {

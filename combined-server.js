@@ -88,33 +88,91 @@ const dbConfig = {
         encrypt: process.env.DB_ENCRYPT === 'true',
         trustServerCertificate: process.env.DB_TRUST_SERVER_CERTIFICATE === 'true',
         enableArithAbort: true,
-        connectTimeout: 30000,
-        requestTimeout: 30000
+        connectTimeout: 60000,  // Increased to 60 seconds
+        requestTimeout: 60000   // Increased to 60 seconds
     },
     pool: {
-        max: parseInt(process.env.DB_MAX_POOL_SIZE) || 10,
+        max: parseInt(process.env.DB_MAX_POOL_SIZE) || 20,
         min: 0,
-        idleTimeoutMillis: 30000
+        idleTimeoutMillis: 60000,  // Increased to 60 seconds
+        acquireTimeoutMillis: 60000,  // Added acquire timeout
+        createTimeoutMillis: 30000,   // Added create timeout
+        destroyTimeoutMillis: 5000,   // Added destroy timeout
+        reapIntervalMillis: 1000,     // Added reap interval
+        createRetryIntervalMillis: 200 // Added create retry interval
     }
 };
 
-// Database connection pool
-let pool;
+// Database connection pool configuration
+const pool = new sql.ConnectionPool(dbConfig);
+const poolConnect = pool.connect();
 
-async function initializeDatabase() {
-    try {
-        console.log('Connecting to database...');
-        pool = await sql.connect(dbConfig);
-        console.log('Connected to database successfully');
-        return true;
-    } catch (err) {
-        console.error('Failed to connect to database:', err);
-        if (appInsights.defaultClient) {
-            appInsights.defaultClient.trackException({ exception: err });
+// Handle pool errors
+pool.on('error', err => {
+    console.error('SQL Pool Error:', err);
+    // Attempt to reconnect
+    setTimeout(async () => {
+        try {
+            console.log('Attempting to reconnect to database...');
+            await pool.close();
+            await pool.connect();
+            console.log('Successfully reconnected to database');
+        } catch (reconnectErr) {
+            console.error('Failed to reconnect to database:', reconnectErr);
         }
-        return false;
+    }, 5000);  // Wait 5 seconds before attempting to reconnect
+});
+
+// Add connection pool monitoring with enhanced error handling
+setInterval(async () => {
+    try {
+        const poolStatus = await pool.request().query('SELECT 1');
+        console.log('Database connection pool is healthy:', {
+            pool_size: pool.pool.size,
+            available: pool.pool.available,
+            pending: pool.pool.pending,
+            borrowed: pool.pool.borrowed
+        });
+    } catch (err) {
+        console.error('Database connection pool health check failed:', err);
+        // Enhanced error logging
+        console.error('Error details:', {
+            code: err.code,
+            number: err.number,
+            state: err.state,
+            class: err.class,
+            lineNumber: err.lineNumber,
+            serverName: err.serverName,
+            procName: err.procName
+        });
+        // Try to reconnect
+        try {
+            await pool.close();
+            await pool.connect();
+            console.log('Successfully reconnected to database');
+        } catch (reconnectErr) {
+            console.error('Failed to reconnect to database:', reconnectErr);
+        }
     }
-}
+}, 30000);  // Check every 30 seconds
+
+// Middleware to ensure database connection with timeout
+app.use(async (req, res, next) => {
+    try {
+        // Wait for pool connection with timeout
+        const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('Database connection timeout')), 30000);
+        });
+        await Promise.race([poolConnect, timeoutPromise]);
+        next();
+    } catch (err) {
+        console.error('Database connection error in middleware:', err);
+        res.status(503).json({ 
+            error: 'Database connection error',
+            message: 'The service is temporarily unavailable. Please try again later.'
+        });
+    }
+});
 
 // Start server only after database connection is established
 async function startServer() {
@@ -486,7 +544,9 @@ app.post('/api/standing-orders/add', async (req, res) => {
 
 // Adjustments endpoints
 app.get('/api/adjustments', async (req, res) => {
+    console.log('Received request for /api/adjustments');
     try {
+        console.log('Executing query for adjustments data...');
         const adjustmentsResult = await pool.request()
             .query(`
                 SELECT [Adjustment_ID]
@@ -508,11 +568,17 @@ app.get('/api/adjustments', async (req, res) => {
                 ORDER BY Store_ID, Product_ID
             `);
 
+        console.log(`Adjustments query returned ${adjustmentsResult.recordset.length} rows`);
+
+        console.log('Executing query for stores data...');
         const storesResult = await pool.request()
             .query('SELECT DISTINCT Store_ID, Store_Name FROM Stores_Master ORDER BY Store_ID');
+        console.log(`Stores query returned ${storesResult.recordset.length} rows`);
 
+        console.log('Executing query for products data...');
         const productsResult = await pool.request()
             .query('SELECT DISTINCT Product_ID, Product_Description FROM Products_Master ORDER BY Product_Description');
+        console.log(`Products query returned ${productsResult.recordset.length} rows`);
 
         res.json({
             adjustments: adjustmentsResult.recordset,
@@ -613,7 +679,9 @@ app.post('/api/adjustments/add', async (req, res) => {
 
 // Final Forecast endpoint
 app.get('/api/final-forecast', async (req, res) => {
+    console.log('Received request for /api/final-forecast');
     try {
+        console.log('Executing query for final forecast data...');
         const result = await pool.request()
             .query(`
                 SELECT [Store_ID]
@@ -634,6 +702,7 @@ app.get('/api/final-forecast', async (req, res) => {
                 ORDER BY Store_Name, Product_Description
             `);
         
+        console.log(`Final forecast query returned ${result.recordset.length} rows`);
         res.json(result.recordset);
     } catch (err) {
         console.error('Error fetching final forecast:', err);
@@ -643,7 +712,9 @@ app.get('/api/final-forecast', async (req, res) => {
 
 // Final Deliveries endpoint
 app.get('/api/final-deliveries', async (req, res) => {
+    console.log('Received request for /api/final-deliveries');
     try {
+        console.log('Executing query for final deliveries data...');
         const result = await pool.request()
             .query(`
                 SELECT [Store_ID]
@@ -664,6 +735,7 @@ app.get('/api/final-deliveries', async (req, res) => {
                 ORDER BY Store_Name, Product_Description
             `);
         
+        console.log(`Final deliveries query returned ${result.recordset.length} rows`);
         res.json(result.recordset);
     } catch (err) {
         console.error('Error fetching final deliveries:', err);
@@ -746,7 +818,9 @@ app.get('/api/actual-sales', async (req, res) => {
 
 // Regional Performance endpoint
 app.get('/api/regional-performance', async (req, res) => {
+    console.log('Received request for /api/regional-performance');
     try {
+        console.log('Executing query for regional performance data...');
         const result = await pool.request()
             .query(`
                 SELECT [Week_Label]
@@ -762,6 +836,8 @@ app.get('/api/regional-performance', async (req, res) => {
                 FROM [dbo].[vw_Cumulative_Weekly_Region_Sales]
                 ORDER BY Week_Label DESC, Region
             `);
+        
+        console.log(`Regional performance query returned ${result.recordset.length} rows`);
         res.json(result.recordset);
     } catch (err) {
         console.error('Error fetching regional performance data:', err);

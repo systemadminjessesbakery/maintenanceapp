@@ -113,79 +113,119 @@
         $(document).ready(function() {
             let table;
             let chart;
-            const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-            
-            // Initialize DataTable
-            table = $('#regionalTable').DataTable({
-                ajax: {
-                    url: '/api/regional-performance',
-                    dataSrc: ''
-                },
-                columns: [
-                    { data: 'Week_Label' },
-                    { data: 'Region' },
-                    { data: 'Sunday' },
-                    { data: 'Monday' },
-                    { data: 'Tuesday' },
-                    { data: 'Wednesday' },
-                    { data: 'Thursday' },
-                    { data: 'Friday' },
-                    { data: 'Saturday' },
-                    { data: 'Total_Week_Quantity' }
-                ],
-                order: [[0, 'desc'], [1, 'asc']],
-                dom: 'Bfrtip',
-                buttons: [
-                    'copy', 'excel', 'csv'
-                ],
-                createdRow: function(row, data, dataIndex) {
-                    // Group rows by region and find highest values
-                    const region = data.Region;
-                    const weekLabel = data.Week_Label;
-                    const regionData = table.rows().data().toArray()
-                        .filter(r => r.Region === region)
-                        .slice(0, 3); // Get only current and 2 prior weeks
+            let selectedRegion = '';
 
-                    days.forEach((day, index) => {
-                        const values = regionData.map(r => r[day]);
-                        const maxValue = Math.max(...values);
-                        if (data[day] === maxValue) {
-                            $('td', row).eq(index + 2).addClass('highest-value');
+            async function fetchData() {
+                console.log('Fetching regional performance data...');
+                try {
+                    console.log('Making API request to /api/regional-performance...');
+                    const response = await fetch('/api/regional-performance', {
+                        method: 'GET',
+                        headers: {
+                            'Accept': 'application/json'
                         }
                     });
-                }
-            });
 
-            // Populate region dropdown
-            function updateRegionDropdown() {
-                const regions = [...new Set(table.rows().data().toArray().map(row => row.Region))];
-                const select = $('#regionSelect');
-                select.empty();
-                regions.forEach(region => {
-                    select.append($('<option>').val(region).text(region));
-                });
-                updateChart();
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        console.error('API request failed:', response.status, errorText);
+                        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+                    }
+
+                    console.log('API request successful, parsing response...');
+                    const data = await response.json();
+                    console.log(`Received ${data.length} records`);
+
+                    if (!table) {
+                        initializeTable(data);
+                    } else {
+                        table.clear().rows.add(data).draw();
+                    }
+
+                    updateRegionDropdown();
+                    if (selectedRegion) {
+                        updateChart();
+                    }
+                    console.log('Data loaded and displayed successfully');
+                } catch (error) {
+                    console.error('Error fetching data:', error);
+                    $('#regionalTable').html(`<div class="error">Error loading data: ${error.message}</div>`);
+                }
             }
 
-            // Initialize and update chart
-            function updateChart() {
-                const selectedRegion = $('#regionSelect').val();
-                const regionData = table.rows().data().toArray()
-                    .filter(r => r.Region === selectedRegion)
-                    .slice(0, 3); // Get only current and 2 prior weeks
+            function initializeTable(data) {
+                console.log('Initializing DataTable...');
+                table = $('#regionalTable').DataTable({
+                    data: data,
+                    columns: [
+                        { data: 'Week_Label', title: 'Week Label' },
+                        { data: 'Region', title: 'Region' },
+                        { data: 'Sunday', title: 'Sunday' },
+                        { data: 'Monday', title: 'Monday' },
+                        { data: 'Tuesday', title: 'Tuesday' },
+                        { data: 'Wednesday', title: 'Wednesday' },
+                        { data: 'Thursday', title: 'Thursday' },
+                        { data: 'Friday', title: 'Friday' },
+                        { data: 'Saturday', title: 'Saturday' },
+                        { data: 'Total_Week_Quantity', title: 'Total Week Quantity' }
+                    ],
+                    order: [[0, 'desc'], [1, 'asc']],
+                    pageLength: 25,
+                    dom: 'Bfrtip',
+                    buttons: ['copy', 'csv', 'excel', 'pdf', 'print']
+                });
+                console.log('DataTable initialized successfully');
+            }
 
-                const datasets = regionData.map((weekData, index) => ({
-                    label: weekData.Week_Label,
-                    data: days.map(day => weekData[day]),
-                    borderColor: index === 0 ? '#007bff' : index === 1 ? '#28a745' : '#dc3545',
-                    fill: false,
-                    tension: 0.1
-                }));
+            function updateRegionDropdown() {
+                console.log('Updating region dropdown...');
+                if (!table) return;
+
+                const regions = [...new Set(table.column(1).data().toArray())];
+                const select = $('#regionSelect');
+                select.empty();
+                select.append('<option value="">Select Region</option>');
+                regions.forEach(region => {
+                    select.append(`<option value="${region}">${region}</option>`);
+                });
+
+                if (selectedRegion && regions.includes(selectedRegion)) {
+                    select.val(selectedRegion);
+                }
+                console.log(`Region dropdown updated with ${regions.length} regions`);
+            }
+
+            function updateChart() {
+                console.log('Updating chart...');
+                if (!table || !selectedRegion) return;
+
+                const data = table.rows().data().toArray()
+                    .filter(row => row.Region === selectedRegion)
+                    .sort((a, b) => a.Week_Label.localeCompare(b.Week_Label));
+
+                if (data.length === 0) {
+                    console.log('No data available for selected region');
+                    return;
+                }
+
+                const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+                const weeks = [...new Set(data.map(row => row.Week_Label))];
+
+                const datasets = weeks.map((week, index) => {
+                    const weekData = data.find(row => row.Week_Label === week);
+                    return {
+                        label: week,
+                        data: days.map(day => weekData[day]),
+                        borderColor: `hsl(${index * 360 / weeks.length}, 70%, 50%)`,
+                        fill: false
+                    };
+                });
 
                 if (chart) {
                     chart.destroy();
                 }
 
+                console.log(`Creating chart with ${weeks.length} weeks of data`);
                 chart = new Chart($('#performanceChart'), {
                     type: 'line',
                     data: {
@@ -216,11 +256,20 @@
                         }
                     }
                 });
+                console.log('Chart updated successfully');
             }
 
             // Event listeners
             table.on('draw', updateRegionDropdown);
-            $('#regionSelect').on('change', updateChart);
+            $('#regionSelect').on('change', function() {
+                selectedRegion = $(this).val();
+                updateChart();
+            });
+
+            // Initial data load
+            console.log('Starting initial data load...');
+            fetchData();
+            setInterval(fetchData, 300000); // Refresh every 5 minutes
         });
     </script>
 </body>
