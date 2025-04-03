@@ -333,6 +333,18 @@
         let products = [];
         let activeFilters = {};
 
+        function showStatusMessage(message, isSuccess) {
+            const statusDiv = document.createElement('div');
+            statusDiv.className = `status-message ${isSuccess ? 'status-success' : 'status-error'}`;
+            statusDiv.textContent = message;
+            document.body.appendChild(statusDiv);
+            statusDiv.style.display = 'block';
+            setTimeout(() => {
+                statusDiv.style.opacity = '0';
+                setTimeout(() => statusDiv.remove(), 300);
+            }, 3000);
+        }
+
         async function fetchData() {
             const loading = document.getElementById('loading');
             loading.style.display = 'block';

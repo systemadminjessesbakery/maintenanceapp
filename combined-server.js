@@ -85,12 +85,14 @@ const dbConfig = {
     server: process.env.DB_SERVER,
     database: process.env.DB_NAME,
     options: {
-        encrypt: true,
-        trustServerCertificate: true,
-        enableArithAbort: true
+        encrypt: process.env.DB_ENCRYPT === 'true',
+        trustServerCertificate: process.env.DB_TRUST_SERVER_CERTIFICATE === 'true',
+        enableArithAbort: true,
+        connectTimeout: 30000,
+        requestTimeout: 30000
     },
     pool: {
-        max: 10,
+        max: parseInt(process.env.DB_MAX_POOL_SIZE) || 10,
         min: 0,
         idleTimeoutMillis: 30000
     }
