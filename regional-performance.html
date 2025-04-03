@@ -1,1 +1,227 @@
- 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Regional Performance - Jesse's Bakery</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
+    <link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css">
+    <style>
+        .highest-value {
+            background-color: #90EE90 !important;
+            font-weight: bold;
+        }
+        .chart-container {
+            height: 400px;
+            margin-top: 20px;
+        }
+        .region-filter {
+            margin: 20px 0;
+        }
+        .card {
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .card-header {
+            background-color: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
+            padding: 1rem;
+        }
+        .table th {
+            background-color: #f8f9fa;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">Jesse's Bakery</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">Home</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid mt-4">
+        <div class="row">
+            <div class="col">
+                <h2>Regional Performance</h2>
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Weekly Sales Comparison</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table id="regionalTable" class="table table-striped table-bordered">
+                                <thead>
+                                    <tr>
+                                        <th>Week Label</th>
+                                        <th>Region</th>
+                                        <th>Sunday</th>
+                                        <th>Monday</th>
+                                        <th>Tuesday</th>
+                                        <th>Wednesday</th>
+                                        <th>Thursday</th>
+                                        <th>Friday</th>
+                                        <th>Saturday</th>
+                                        <th>Total Week Quantity</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Performance Trend</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="region-filter">
+                            <label for="regionSelect" class="form-label">Select Region:</label>
+                            <select id="regionSelect" class="form-select"></select>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="performanceChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+    <script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+    <script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <script>
+        $(document).ready(function() {
+            let table;
+            let chart;
+            const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+            
+            // Initialize DataTable
+            table = $('#regionalTable').DataTable({
+                ajax: {
+                    url: '/api/regional-performance',
+                    dataSrc: ''
+                },
+                columns: [
+                    { data: 'Week_Label' },
+                    { data: 'Region' },
+                    { data: 'Sunday' },
+                    { data: 'Monday' },
+                    { data: 'Tuesday' },
+                    { data: 'Wednesday' },
+                    { data: 'Thursday' },
+                    { data: 'Friday' },
+                    { data: 'Saturday' },
+                    { data: 'Total_Week_Quantity' }
+                ],
+                order: [[0, 'desc'], [1, 'asc']],
+                dom: 'Bfrtip',
+                buttons: [
+                    'copy', 'excel', 'csv'
+                ],
+                createdRow: function(row, data, dataIndex) {
+                    // Group rows by region and find highest values
+                    const region = data.Region;
+                    const weekLabel = data.Week_Label;
+                    const regionData = table.rows().data().toArray()
+                        .filter(r => r.Region === region)
+                        .slice(0, 3); // Get only current and 2 prior weeks
+
+                    days.forEach((day, index) => {
+                        const values = regionData.map(r => r[day]);
+                        const maxValue = Math.max(...values);
+                        if (data[day] === maxValue) {
+                            $('td', row).eq(index + 2).addClass('highest-value');
+                        }
+                    });
+                }
+            });
+
+            // Populate region dropdown
+            function updateRegionDropdown() {
+                const regions = [...new Set(table.rows().data().toArray().map(row => row.Region))];
+                const select = $('#regionSelect');
+                select.empty();
+                regions.forEach(region => {
+                    select.append($('<option>').val(region).text(region));
+                });
+                updateChart();
+            }
+
+            // Initialize and update chart
+            function updateChart() {
+                const selectedRegion = $('#regionSelect').val();
+                const regionData = table.rows().data().toArray()
+                    .filter(r => r.Region === selectedRegion)
+                    .slice(0, 3); // Get only current and 2 prior weeks
+
+                const datasets = regionData.map((weekData, index) => ({
+                    label: weekData.Week_Label,
+                    data: days.map(day => weekData[day]),
+                    borderColor: index === 0 ? '#007bff' : index === 1 ? '#28a745' : '#dc3545',
+                    fill: false,
+                    tension: 0.1
+                }));
+
+                if (chart) {
+                    chart.destroy();
+                }
+
+                chart = new Chart($('#performanceChart'), {
+                    type: 'line',
+                    data: {
+                        labels: days,
+                        datasets: datasets
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                title: {
+                                    display: true,
+                                    text: 'Sales Quantity'
+                                }
+                            }
+                        },
+                        plugins: {
+                            title: {
+                                display: true,
+                                text: `Weekly Performance Comparison - ${selectedRegion}`
+                            },
+                            legend: {
+                                display: true,
+                                position: 'top'
+                            }
+                        }
+                    }
+                });
+            }
+
+            // Event listeners
+            table.on('draw', updateRegionDropdown);
+            $('#regionSelect').on('change', updateChart);
+        });
+    </script>
+</body>
+</html> 
