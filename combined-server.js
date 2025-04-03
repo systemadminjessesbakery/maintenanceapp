@@ -52,43 +52,6 @@ app.get('/health', (req, res) => {
     });
 });
 
-// Root route (Main Menu)
-app.get('/', (req, res) => {
-    console.log('Serving index.html from:', path.join(__dirname, 'index.html'));
-    console.log('Current directory:', __dirname);
-    res.sendFile(path.join(__dirname, 'index.html'));
-});
-
-// Static routes
-const staticPages = [
-    'stores-master.html',
-    'products-master.html',
-    'standing-orders.html',
-    'adjustments.html',
-    'final-production.html',
-    'final-delivery.html',
-    'region-uplift.html',
-    'actual-sales.html',
-    'regional-performance.html'
-];
-
-staticPages.forEach(page => {
-    app.get(`/${page}`, (req, res) => {
-        const filePath = path.join(__dirname, page);
-        console.log(`Attempting to serve static file: ${filePath}`);
-        res.sendFile(filePath, (err) => {
-            if (err) {
-                console.error(`Error sending file ${filePath}:`, err);
-                if (!res.headersSent) {
-                    res.status(err.status || 500).end();
-                }
-            } else {
-                console.log(`Successfully served static file: ${filePath}`);
-            }
-        });
-    });
-});
-
 // Database configuration
 const dbConfig = {
     user: process.env.DB_USER,
