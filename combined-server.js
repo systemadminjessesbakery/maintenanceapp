@@ -233,6 +233,7 @@ startServer().catch(err => {
 });
 
 // Global error handlers
+// Trigger deployment sync
 process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection at:', promise, 'reason:', reason);
   if (appInsights.defaultClient) {
