@@ -741,6 +741,18 @@ app.get('/api/actual-sales', async (req, res) => {
     }
 });
 
+// Regional Performance endpoint
+app.get('/api/regional-performance', async (req, res) => {
+    try {
+        const result = await pool.request()
+            .query('SELECT [Week_Label], [Region], [Sunday], [Monday], [Tuesday], [Wednesday], [Thursday], [Friday], [Saturday], [Total_Week_Quantity] FROM [dbo].[vw_Cumulative_Weekly_Region_Sales]');
+        res.json(result.recordset);
+    } catch (err) {
+        console.error('Error fetching regional performance data:', err);
+        res.status(500).json({ error: 'Error fetching regional performance data' });
+    }
+});
+
 // Serve logo
 app.get('/logo', (req, res) => {
     res.sendFile(path.join(__dirname, 'logo.jpg'));
