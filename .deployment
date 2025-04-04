@@ -1,5 +1,5 @@
 [config]
-command = deploy.cmd
+command = bash deploy.sh
 post.deployment.command = npm start
 SCM_DO_BUILD_DURING_DEPLOYMENT=true
 ENABLE_ORYX_BUILD=true
