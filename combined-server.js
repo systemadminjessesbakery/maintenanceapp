@@ -40,7 +40,45 @@ app.use((req, res, next) => {
     next();
 });
 
-app.use(express.static(path.join(__dirname)));
+// Serve static files with no caching
+app.use((req, res, next) => {
+    if (req.url.endsWith('.html')) {
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+    }
+    next();
+});
+
+// Serve static files from the current directory
+app.use(express.static(path.join(__dirname), {
+    etag: false,
+    lastModified: false,
+    setHeaders: (res, path) => {
+        if (path.endsWith('.html')) {
+            res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+            res.setHeader('Pragma', 'no-cache');
+            res.setHeader('Expires', '0');
+        }
+    }
+}));
+
+// Explicit route for index.html
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+// Explicit routes for HTML files
+app.get('/:page.html', (req, res) => {
+    const page = req.params.page;
+    const filePath = path.join(__dirname, `${page}.html`);
+    res.sendFile(filePath, (err) => {
+        if (err) {
+            console.error(`Error serving ${page}.html:`, err);
+            res.status(404).send('File not found');
+        }
+    });
+});
 
 // Health check endpoint
 app.get('/health', (req, res) => {
