@@ -186,6 +186,21 @@ app.use(async (req, res, next) => {
     }
 });
 
+// Initialize database connection
+async function initializeDatabase() {
+    try {
+        await poolConnect;
+        console.log('Database connection established successfully');
+        return true;
+    } catch (err) {
+        console.error('Failed to initialize database:', err);
+        if (appInsights.defaultClient) {
+            appInsights.defaultClient.trackException({ exception: err });
+        }
+        return false;
+    }
+}
+
 // Start server only after database connection is established
 async function startServer() {
     try {
