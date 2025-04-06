@@ -186,21 +186,6 @@ app.use(async (req, res, next) => {
     }
 });
 
-// Initialize database connection
-async function initializeDatabase() {
-    try {
-        await poolConnect;
-        console.log('Database connection established successfully');
-        return true;
-    } catch (err) {
-        console.error('Failed to initialize database:', err);
-        if (appInsights.defaultClient) {
-            appInsights.defaultClient.trackException({ exception: err });
-        }
-        return false;
-    }
-}
-
 // Start server only after database connection is established
 async function startServer() {
     try {
@@ -874,28 +859,95 @@ app.get('/api/actual-sales', async (req, res) => {
 app.get('/api/regional-performance', async (req, res) => {
     console.log('Received request for /api/regional-performance');
     try {
-        console.log('Executing query for regional performance data...');
+        console.log('Checking database connection...');
+        await pool.connect();
+        
+        // First check if we have data in the Combined_Sales_Data_Final table
+        console.log('Checking sales data...');
+        const salesCheck = await pool.request()
+            .query(`
+                SELECT COUNT(*) as SalesCount,
+                       MIN(Transaction_Date) as EarliestDate,
+                       MAX(Transaction_Date) as LatestDate
+                FROM dbo.Combined_Sales_Data_Final
+                WHERE Location IS NOT NULL;
+            `);
+        
+        console.log('Sales data check:', salesCheck.recordset[0]);
+
+        if (salesCheck.recordset[0].SalesCount === 0) {
+            return res.status(404).json({
+                error: 'No sales data found',
+                message: 'There is no sales data available to generate the regional performance report'
+            });
+        }
+
+        // Query the regional performance data directly from sales data
+        console.log('Executing regional performance query...');
         const result = await pool.request()
             .query(`
-                SELECT [Week_Label]
-                    ,[Region]
-                    ,[Sunday]
-                    ,[Monday]
-                    ,[Tuesday]
-                    ,[Wednesday]
-                    ,[Thursday]
-                    ,[Friday]
-                    ,[Saturday]
-                    ,[Total_Week_Quantity]
-                FROM [dbo].[vw_Cumulative_Weekly_Region_Sales]
-                ORDER BY Week_Label DESC, Region
+                WITH WeeklySales AS (
+                    SELECT 
+                        DATEADD(day, -DATEPART(weekday, Transaction_Date) + 1, Transaction_Date) AS Week_Start,
+                        CONVERT(varchar, DATEADD(day, -DATEPART(weekday, Transaction_Date) + 1, Transaction_Date), 23) + 
+                        ' - ' + 
+                        CONVERT(varchar, DATEADD(day, 7-DATEPART(weekday, Transaction_Date), Transaction_Date), 23) AS Week_Label,
+                        Location AS Region,
+                        DATEPART(weekday, Transaction_Date) AS DayOfWeek,
+                        SUM(Quantity) AS Daily_Quantity
+                    FROM dbo.Combined_Sales_Data_Final
+                    WHERE Location IS NOT NULL
+                    GROUP BY 
+                        DATEADD(day, -DATEPART(weekday, Transaction_Date) + 1, Transaction_Date),
+                        Location,
+                        DATEPART(weekday, Transaction_Date)
+                )
+                SELECT 
+                    Week_Label,
+                    Region,
+                    SUM(CASE WHEN DayOfWeek = 1 THEN Daily_Quantity ELSE 0 END) AS Sunday,
+                    SUM(CASE WHEN DayOfWeek = 2 THEN Daily_Quantity ELSE 0 END) AS Monday,
+                    SUM(CASE WHEN DayOfWeek = 3 THEN Daily_Quantity ELSE 0 END) AS Tuesday,
+                    SUM(CASE WHEN DayOfWeek = 4 THEN Daily_Quantity ELSE 0 END) AS Wednesday,
+                    SUM(CASE WHEN DayOfWeek = 5 THEN Daily_Quantity ELSE 0 END) AS Thursday,
+                    SUM(CASE WHEN DayOfWeek = 6 THEN Daily_Quantity ELSE 0 END) AS Friday,
+                    SUM(CASE WHEN DayOfWeek = 7 THEN Daily_Quantity ELSE 0 END) AS Saturday,
+                    SUM(Daily_Quantity) AS Total_Week_Quantity
+                FROM WeeklySales
+                GROUP BY Week_Label, Region, Week_Start
+                ORDER BY Week_Start DESC, Region
             `);
         
         console.log(`Regional performance query returned ${result.recordset.length} rows`);
+        if (result.recordset.length > 0) {
+            console.log('Sample row:', result.recordset[0]);
+        } else {
+            console.log('No data returned from query');
+            return res.status(404).json({
+                error: 'No regional performance data',
+                message: 'No data was returned from the regional performance query'
+            });
+        }
+        
         res.json(result.recordset);
     } catch (err) {
         console.error('Error fetching regional performance data:', err);
-        res.status(500).json({ error: 'Error fetching regional performance data' });
+        console.error('Error details:', {
+            message: err.message,
+            code: err.code,
+            state: err.state,
+            number: err.number,
+            lineNumber: err.lineNumber,
+            serverName: err.serverName,
+            procName: err.procName,
+            stack: err.stack
+        });
+
+        res.status(500).json({ 
+            error: 'Error fetching regional performance data',
+            details: err.message,
+            errorCode: err.number
+        });
     }
 });
 
