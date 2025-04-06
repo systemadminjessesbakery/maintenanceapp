@@ -13,6 +13,10 @@
             background-color: #90EE90 !important;
             font-weight: bold;
         }
+        .lowest-value {
+            background-color: #FFB6C6 !important;
+            font-weight: bold;
+        }
         .chart-container {
             height: 400px;
             margin-top: 20px;
@@ -87,10 +91,6 @@
                         <h5 class="card-title mb-0">Performance Trend</h5>
                     </div>
                     <div class="card-body">
-                        <div class="region-filter">
-                            <label for="regionSelect" class="form-label">Select Region:</label>
-                            <select id="regionSelect" class="form-select"></select>
-                        </div>
                         <div class="chart-container">
                             <canvas id="performanceChart"></canvas>
                         </div>
@@ -113,7 +113,6 @@
         $(document).ready(function() {
             let table;
             let chart;
-            let selectedRegion = '';
 
             async function fetchData() {
                 console.log('Fetching regional performance data...');
@@ -142,10 +141,7 @@
                         table.clear().rows.add(data).draw();
                     }
 
-                    updateRegionDropdown();
-                    if (selectedRegion) {
-                        updateChart();
-                    }
+                    updateChart(data);
                     console.log('Data loaded and displayed successfully');
                 } catch (error) {
                     console.error('Error fetching data:', error);
@@ -153,8 +149,34 @@
                 }
             }
 
+            function findHighestLowestValues(data) {
+                const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+                const weekLabels = [...new Set(data.map(row => row.Week_Label))];
+                
+                const highlights = {};
+                weekLabels.forEach(weekLabel => {
+                    const weekData = data.filter(row => row.Week_Label === weekLabel);
+                    highlights[weekLabel] = {};
+                    
+                    days.forEach(day => {
+                        const values = weekData.map(row => parseInt(row[day]) || 0);
+                        const max = Math.max(...values);
+                        const min = Math.min(...values);
+                        
+                        highlights[weekLabel][day] = {
+                            highest: max,
+                            lowest: min
+                        };
+                    });
+                });
+                
+                return highlights;
+            }
+
             function initializeTable(data) {
                 console.log('Initializing DataTable...');
+                const highlights = findHighestLowestValues(data);
+                
                 table = $('#regionalTable').DataTable({
                     data: data,
                     columns: [
@@ -170,53 +192,49 @@
                         { data: 'Total_Week_Quantity', title: 'Total Week Quantity' }
                     ],
                     order: [[0, 'desc'], [1, 'asc']],
-                    pageLength: 25,
+                    pageLength: -1, // Show all rows
+                    scrollY: '600px', // Enable vertical scrolling
+                    scrollCollapse: true,
                     dom: 'Bfrtip',
-                    buttons: ['copy', 'csv', 'excel', 'pdf', 'print']
+                    buttons: ['copy', 'csv', 'excel', 'pdf', 'print'],
+                    createdRow: function(row, data, index) {
+                        const weekHighlights = highlights[data.Week_Label];
+                        if (weekHighlights) {
+                            ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].forEach((day, i) => {
+                                const cell = row.children[i + 2]; // +2 because first two columns are Week_Label and Region
+                                const value = parseInt(data[day]) || 0;
+                                
+                                if (value === weekHighlights[day].highest && value !== weekHighlights[day].lowest) {
+                                    $(cell).addClass('highest-value');
+                                } else if (value === weekHighlights[day].lowest && value !== weekHighlights[day].highest) {
+                                    $(cell).addClass('lowest-value');
+                                }
+                            });
+                        }
+                    }
                 });
                 console.log('DataTable initialized successfully');
             }
 
-            function updateRegionDropdown() {
-                console.log('Updating region dropdown...');
-                if (!table) return;
-
-                const regions = [...new Set(table.column(1).data().toArray())];
-                const select = $('#regionSelect');
-                select.empty();
-                select.append('<option value="">Select Region</option>');
-                regions.forEach(region => {
-                    select.append(`<option value="${region}">${region}</option>`);
-                });
-
-                if (selectedRegion && regions.includes(selectedRegion)) {
-                    select.val(selectedRegion);
-                }
-                console.log(`Region dropdown updated with ${regions.length} regions`);
-            }
-
-            function updateChart() {
+            function updateChart(data) {
                 console.log('Updating chart...');
-                if (!table || !selectedRegion) return;
-
-                const data = table.rows().data().toArray()
-                    .filter(row => row.Region === selectedRegion)
-                    .sort((a, b) => a.Week_Label.localeCompare(b.Week_Label));
-
-                if (data.length === 0) {
-                    console.log('No data available for selected region');
-                    return;
-                }
-
+                
                 const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+                const regions = [...new Set(data.map(row => row.Region))];
                 const weeks = [...new Set(data.map(row => row.Week_Label))];
+                
+                // Create datasets for each region
+                const datasets = regions.map((region, index) => {
+                    const regionData = data.filter(row => row.Region === region);
+                    const weeklyTotals = weeks.map(week => {
+                        const weekData = regionData.find(row => row.Week_Label === week);
+                        return weekData ? weekData.Total_Week_Quantity : 0;
+                    });
 
-                const datasets = weeks.map((week, index) => {
-                    const weekData = data.find(row => row.Week_Label === week);
                     return {
-                        label: week,
-                        data: days.map(day => weekData[day]),
-                        borderColor: `hsl(${index * 360 / weeks.length}, 70%, 50%)`,
+                        label: region,
+                        data: weeklyTotals,
+                        borderColor: `hsl(${index * 360 / regions.length}, 70%, 50%)`,
                         fill: false
                     };
                 });
@@ -225,11 +243,11 @@
                     chart.destroy();
                 }
 
-                console.log(`Creating chart with ${weeks.length} weeks of data`);
+                console.log(`Creating chart with ${regions.length} regions`);
                 chart = new Chart($('#performanceChart'), {
                     type: 'line',
                     data: {
-                        labels: days,
+                        labels: weeks,
                         datasets: datasets
                     },
                     options: {
@@ -240,25 +258,32 @@
                                 beginAtZero: true,
                                 title: {
                                     display: true,
-                                    text: 'Sales Quantity'
+                                    text: 'Total Weekly Sales Quantity'
+                                }
+                            },
+                            x: {
+                                title: {
+                                    display: true,
+                                    text: 'Week'
                                 }
                             }
                         },
                         plugins: {
                             title: {
                                 display: true,
-                                text: `Weekly Performance Comparison - ${selectedRegion}`
+                                text: 'Regional Weekly Performance Comparison'
+                            },
+                            legend: {
+                                position: 'bottom',
+                                labels: {
+                                    boxWidth: 12
+                                }
                             }
                         }
                     }
                 });
                 console.log('Chart updated successfully');
             }
-
-            $('#regionSelect').on('change', function() {
-                selectedRegion = $(this).val();
-                updateChart();
-            });
 
             // Initial fetch and setup
             fetchData();

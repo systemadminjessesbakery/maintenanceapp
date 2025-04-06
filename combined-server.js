@@ -862,45 +862,44 @@ app.get('/api/regional-performance', async (req, res) => {
         console.log('Checking database connection...');
         await pool.connect();
         
-        // First check if we have data in the Combined_Sales_Data_Final table
-        console.log('Checking sales data...');
-        const salesCheck = await pool.request()
-            .query(`
-                SELECT COUNT(*) as SalesCount,
-                       MIN(Transaction_Date) as EarliestDate,
-                       MAX(Transaction_Date) as LatestDate
-                FROM dbo.Combined_Sales_Data_Final
-                WHERE Location IS NOT NULL;
-            `);
-        
-        console.log('Sales data check:', salesCheck.recordset[0]);
-
-        if (salesCheck.recordset[0].SalesCount === 0) {
-            return res.status(404).json({
-                error: 'No sales data found',
-                message: 'There is no sales data available to generate the regional performance report'
-            });
-        }
-
-        // Query the regional performance data directly from sales data
+        // Query the regional performance data for the last 3 complete weeks
         console.log('Executing regional performance query...');
         const result = await pool.request()
             .query(`
                 WITH WeeklySales AS (
                     SELECT 
-                        DATEADD(day, -DATEPART(weekday, Transaction_Date) + 1, Transaction_Date) AS Week_Start,
-                        CONVERT(varchar, DATEADD(day, -DATEPART(weekday, Transaction_Date) + 1, Transaction_Date), 23) + 
-                        ' - ' + 
-                        CONVERT(varchar, DATEADD(day, 7-DATEPART(weekday, Transaction_Date), Transaction_Date), 23) AS Week_Label,
+                        DATEADD(day, 
+                            -(DATEPART(weekday, Transaction_Date) - 1), 
+                            CAST(Transaction_Date AS DATE)
+                        ) AS Week_Start,
+                        DATEADD(day, 
+                            7-(DATEPART(weekday, Transaction_Date)), 
+                            CAST(Transaction_Date AS DATE)
+                        ) AS Week_End,
+                        CONVERT(varchar, DATEADD(day, 
+                            -(DATEPART(weekday, Transaction_Date) - 1), 
+                            CAST(Transaction_Date AS DATE)
+                        ), 23) + ' - ' + 
+                        CONVERT(varchar, DATEADD(day, 
+                            7-(DATEPART(weekday, Transaction_Date)), 
+                            CAST(Transaction_Date AS DATE)
+                        ), 23) AS Week_Label,
                         Location AS Region,
                         DATEPART(weekday, Transaction_Date) AS DayOfWeek,
                         SUM(Quantity) AS Daily_Quantity
                     FROM dbo.Combined_Sales_Data_Final
                     WHERE Location IS NOT NULL
                     GROUP BY 
-                        DATEADD(day, -DATEPART(weekday, Transaction_Date) + 1, Transaction_Date),
+                        DATEADD(day, -(DATEPART(weekday, Transaction_Date) - 1), CAST(Transaction_Date AS DATE)),
+                        DATEADD(day, 7-(DATEPART(weekday, Transaction_Date)), CAST(Transaction_Date AS DATE)),
                         Location,
                         DATEPART(weekday, Transaction_Date)
+                ),
+                LastCompleteWeek AS (
+                    SELECT TOP 1 Week_End
+                    FROM WeeklySales
+                    WHERE Week_End <= GETDATE()
+                    ORDER BY Week_End DESC
                 )
                 SELECT 
                     Week_Label,
@@ -913,9 +912,12 @@ app.get('/api/regional-performance', async (req, res) => {
                     SUM(CASE WHEN DayOfWeek = 6 THEN Daily_Quantity ELSE 0 END) AS Friday,
                     SUM(CASE WHEN DayOfWeek = 7 THEN Daily_Quantity ELSE 0 END) AS Saturday,
                     SUM(Daily_Quantity) AS Total_Week_Quantity
-                FROM WeeklySales
-                GROUP BY Week_Label, Region, Week_Start
-                ORDER BY Week_Start DESC, Region
+                FROM WeeklySales ws
+                CROSS JOIN LastCompleteWeek lcw
+                WHERE ws.Week_End <= lcw.Week_End
+                    AND ws.Week_End > DATEADD(day, -21, lcw.Week_End)
+                GROUP BY Week_Label, Region, Week_Start, Week_End
+                ORDER BY Week_End DESC, Region;
             `);
         
         console.log(`Regional performance query returned ${result.recordset.length} rows`);
