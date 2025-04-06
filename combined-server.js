@@ -866,7 +866,19 @@ app.get('/api/regional-performance', async (req, res) => {
         console.log('Executing regional performance query...');
         const result = await pool.request()
             .query(`
-                WITH WeeklySales AS (
+                WITH DateInfo AS (
+                    SELECT 
+                        GETDATE() as CurrentDate,
+                        DATEADD(day, 
+                            -(DATEPART(weekday, GETDATE()) + 6) % 7, 
+                            CAST(GETDATE() AS DATE)
+                        ) as ThisSunday,
+                        DATEADD(day, 
+                            -(DATEPART(weekday, GETDATE()) - 1), 
+                            CAST(GETDATE() AS DATE)
+                        ) as LastSaturday
+                ),
+                WeeklySales AS (
                     SELECT 
                         DATEADD(day, 
                             -(DATEPART(weekday, Transaction_Date) - 1), 
@@ -896,10 +908,10 @@ app.get('/api/regional-performance', async (req, res) => {
                         DATEPART(weekday, Transaction_Date)
                 ),
                 LastCompleteWeek AS (
-                    SELECT TOP 1 Week_End
-                    FROM WeeklySales
-                    WHERE Week_End <= GETDATE()
-                    ORDER BY Week_End DESC
+                    SELECT 
+                        LastSaturday as WeekEnd,
+                        DATEADD(day, -21, LastSaturday) as ThreeWeeksAgo
+                    FROM DateInfo
                 )
                 SELECT 
                     Week_Label,
@@ -914,8 +926,8 @@ app.get('/api/regional-performance', async (req, res) => {
                     SUM(Daily_Quantity) AS Total_Week_Quantity
                 FROM WeeklySales ws
                 CROSS JOIN LastCompleteWeek lcw
-                WHERE ws.Week_End <= lcw.Week_End
-                    AND ws.Week_End > DATEADD(day, -21, lcw.Week_End)
+                WHERE ws.Week_End <= lcw.WeekEnd
+                    AND ws.Week_End > lcw.ThreeWeeksAgo
                 GROUP BY Week_Label, Region, Week_Start, Week_End
                 ORDER BY Week_End DESC, Region;
             `);
