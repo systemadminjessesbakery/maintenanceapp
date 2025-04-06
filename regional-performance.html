@@ -21,9 +21,6 @@
             height: 400px;
             margin-top: 20px;
         }
-        .region-filter {
-            margin: 20px 0;
-        }
         .card {
             margin-bottom: 20px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
@@ -35,6 +32,32 @@
         }
         .table th {
             background-color: #f8f9fa;
+        }
+        /* Add scrolling for table */
+        .dataTables_wrapper {
+            max-height: 600px;
+            overflow-y: auto;
+        }
+        /* Ensure table header stays visible */
+        .table thead th {
+            position: sticky;
+            top: 0;
+            z-index: 1;
+            background-color: #f8f9fa;
+        }
+        /* Fix table width */
+        .table {
+            width: 100% !important;
+            margin-bottom: 0 !important;
+        }
+        /* Highlight cells */
+        td.highlight-high {
+            background-color: #90EE90 !important;
+            font-weight: bold;
+        }
+        td.highlight-low {
+            background-color: #FFB6C6 !important;
+            font-weight: bold;
         }
     </style>
 </head>
@@ -114,41 +137,6 @@
             let table;
             let chart;
 
-            async function fetchData() {
-                console.log('Fetching regional performance data...');
-                try {
-                    console.log('Making API request to /api/regional-performance...');
-                    const response = await fetch('/api/regional-performance', {
-                        method: 'GET',
-                        headers: {
-                            'Accept': 'application/json'
-                        }
-                    });
-
-                    if (!response.ok) {
-                        const errorText = await response.text();
-                        console.error('API request failed:', response.status, errorText);
-                        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
-                    }
-
-                    console.log('API request successful, parsing response...');
-                    const data = await response.json();
-                    console.log(`Received ${data.length} records`);
-
-                    if (!table) {
-                        initializeTable(data);
-                    } else {
-                        table.clear().rows.add(data).draw();
-                    }
-
-                    updateChart(data);
-                    console.log('Data loaded and displayed successfully');
-                } catch (error) {
-                    console.error('Error fetching data:', error);
-                    $('#regionalTable').html(`<div class="error">Error loading data: ${error.message}</div>`);
-                }
-            }
-
             function findHighestLowestValues(data) {
                 const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
                 const weekLabels = [...new Set(data.map(row => row.Week_Label))];
@@ -159,7 +147,7 @@
                     highlights[weekLabel] = {};
                     
                     days.forEach(day => {
-                        const values = weekData.map(row => parseInt(row[day]) || 0);
+                        const values = weekData.map(row => parseFloat(row[day]) || 0);
                         const max = Math.max(...values);
                         const min = Math.min(...values);
                         
@@ -177,6 +165,10 @@
                 console.log('Initializing DataTable...');
                 const highlights = findHighestLowestValues(data);
                 
+                if (table) {
+                    table.destroy();
+                }
+                
                 table = $('#regionalTable').DataTable({
                     data: data,
                     columns: [
@@ -192,8 +184,8 @@
                         { data: 'Total_Week_Quantity', title: 'Total Week Quantity' }
                     ],
                     order: [[0, 'desc'], [1, 'asc']],
-                    pageLength: -1, // Show all rows
-                    scrollY: '600px', // Enable vertical scrolling
+                    paging: false,
+                    scrollY: '500px',
                     scrollCollapse: true,
                     dom: 'Bfrtip',
                     buttons: ['copy', 'csv', 'excel', 'pdf', 'print'],
@@ -202,28 +194,30 @@
                         if (weekHighlights) {
                             ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].forEach((day, i) => {
                                 const cell = row.children[i + 2]; // +2 because first two columns are Week_Label and Region
-                                const value = parseInt(data[day]) || 0;
+                                const value = parseFloat(data[day]) || 0;
                                 
                                 if (value === weekHighlights[day].highest && value !== weekHighlights[day].lowest) {
-                                    $(cell).addClass('highest-value');
+                                    $(cell).addClass('highlight-high');
                                 } else if (value === weekHighlights[day].lowest && value !== weekHighlights[day].highest) {
-                                    $(cell).addClass('lowest-value');
+                                    $(cell).addClass('highlight-low');
                                 }
                             });
                         }
                     }
                 });
+                
+                // Force table width calculation
+                table.columns.adjust();
+                
                 console.log('DataTable initialized successfully');
             }
 
             function updateChart(data) {
                 console.log('Updating chart...');
                 
-                const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
                 const regions = [...new Set(data.map(row => row.Region))];
-                const weeks = [...new Set(data.map(row => row.Week_Label))];
+                const weeks = [...new Set(data.map(row => row.Week_Label))].sort();
                 
-                // Create datasets for each region
                 const datasets = regions.map((region, index) => {
                     const regionData = data.filter(row => row.Region === region);
                     const weeklyTotals = weeks.map(week => {
@@ -243,7 +237,6 @@
                     chart.destroy();
                 }
 
-                console.log(`Creating chart with ${regions.length} regions`);
                 chart = new Chart($('#performanceChart'), {
                     type: 'line',
                     data: {
@@ -282,10 +275,36 @@
                         }
                     }
                 });
-                console.log('Chart updated successfully');
             }
 
-            // Initial fetch and setup
+            async function fetchData() {
+                console.log('Fetching regional performance data...');
+                try {
+                    const response = await fetch('/api/regional-performance', {
+                        method: 'GET',
+                        headers: {
+                            'Accept': 'application/json'
+                        }
+                    });
+
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        console.error('API request failed:', response.status, errorText);
+                        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+                    }
+
+                    const data = await response.json();
+                    console.log(`Received ${data.length} records`);
+
+                    initializeTable(data);
+                    updateChart(data);
+                } catch (error) {
+                    console.error('Error fetching data:', error);
+                    $('#regionalTable').html(`<div class="error">Error loading data: ${error.message}</div>`);
+                }
+            }
+
+            // Initial fetch
             fetchData();
         });
     </script>
