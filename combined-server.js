@@ -869,14 +869,28 @@ app.get('/api/regional-performance', async (req, res) => {
                 WITH DateInfo AS (
                     SELECT 
                         GETDATE() as CurrentDate,
+                        -- Get the most recent Saturday (end of last complete week)
                         DATEADD(day, 
-                            -(DATEPART(weekday, GETDATE()) + 6) % 7, 
+                            -(DATEPART(weekday, GETDATE()) + (CASE WHEN DATEPART(weekday, GETDATE()) = 7 THEN 7 ELSE 0 END)), 
                             CAST(GETDATE() AS DATE)
-                        ) as ThisSunday,
-                        DATEADD(day, 
-                            -(DATEPART(weekday, GETDATE()) - 1), 
-                            CAST(GETDATE() AS DATE)
-                        ) as LastSaturday
+                        ) as LastSaturday,
+                        -- Get the Sunday that started that week
+                        DATEADD(day, -6,
+                            DATEADD(day, 
+                                -(DATEPART(weekday, GETDATE()) + (CASE WHEN DATEPART(weekday, GETDATE()) = 7 THEN 7 ELSE 0 END)), 
+                                CAST(GETDATE() AS DATE)
+                            )
+                        ) as LastWeekSunday
+                ),
+                WeekRanges AS (
+                    SELECT
+                        LastSaturday,
+                        LastWeekSunday,
+                        DATEADD(day, -7, LastWeekSunday) as PreviousWeekSunday,
+                        DATEADD(day, -14, LastWeekSunday) as TwoWeeksAgoSunday,
+                        DATEADD(day, -7, LastSaturday) as PreviousWeekSaturday,
+                        DATEADD(day, -14, LastSaturday) as TwoWeeksAgoSaturday
+                    FROM DateInfo
                 ),
                 WeeklySales AS (
                     SELECT 
@@ -898,20 +912,16 @@ app.get('/api/regional-performance', async (req, res) => {
                         ), 23) AS Week_Label,
                         Location AS Region,
                         DATEPART(weekday, Transaction_Date) AS DayOfWeek,
-                        SUM(Quantity) AS Daily_Quantity
+                        SUM(Quantity) AS Daily_Quantity,
+                        Transaction_Date
                     FROM dbo.Combined_Sales_Data_Final
                     WHERE Location IS NOT NULL
                     GROUP BY 
+                        Transaction_Date,
                         DATEADD(day, -(DATEPART(weekday, Transaction_Date) - 1), CAST(Transaction_Date AS DATE)),
                         DATEADD(day, 7-(DATEPART(weekday, Transaction_Date)), CAST(Transaction_Date AS DATE)),
                         Location,
                         DATEPART(weekday, Transaction_Date)
-                ),
-                LastCompleteWeek AS (
-                    SELECT 
-                        LastSaturday as WeekEnd,
-                        DATEADD(day, -21, LastSaturday) as ThreeWeeksAgo
-                    FROM DateInfo
                 )
                 SELECT 
                     Week_Label,
@@ -925,9 +935,9 @@ app.get('/api/regional-performance', async (req, res) => {
                     SUM(CASE WHEN DayOfWeek = 7 THEN Daily_Quantity ELSE 0 END) AS Saturday,
                     SUM(Daily_Quantity) AS Total_Week_Quantity
                 FROM WeeklySales ws
-                CROSS JOIN LastCompleteWeek lcw
-                WHERE ws.Week_End <= lcw.WeekEnd
-                    AND ws.Week_End > lcw.ThreeWeeksAgo
+                CROSS JOIN WeekRanges wr
+                WHERE Transaction_Date <= wr.LastSaturday
+                    AND Transaction_Date >= wr.TwoWeeksAgoSunday
                 GROUP BY Week_Label, Region, Week_Start, Week_End
                 ORDER BY Week_End DESC, Region;
             `);
