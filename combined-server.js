@@ -863,6 +863,7 @@ app.get('/api/regional-performance', async (req, res) => {
         await pool.connect();
         
         // Query the regional performance data for the last 3 complete weeks
+        // Using Sunday-to-Saturday week calculation for consistent reporting
         console.log('Executing regional performance query...');
         const result = await pool.request()
             .query(`
