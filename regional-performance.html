@@ -4,95 +4,236 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Regional Performance - Jesse's Bakery</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
-    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
-    <link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css">
     <style>
-        .highest-value {
-            background-color: #90EE90 !important;
-            font-weight: bold;
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
         }
-        .lowest-value {
-            background-color: #FFB6C6 !important;
-            font-weight: bold;
-        }
-        .chart-container {
-            height: 400px;
-            margin-top: 20px;
-        }
-        .card {
+
+        .header {
+            background-color: #4CAF50;
+            color: white;
+            padding: 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border-radius: 8px;
             margin-bottom: 20px;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .back-button {
+            background: none;
+            border: none;
+            color: white;
+            cursor: pointer;
+            font-size: 1.2rem;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            text-decoration: none;
+        }
+
+        .back-button:hover {
+            opacity: 0.9;
+        }
+
+        .title {
+            margin: 0;
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .summary-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+
+        .summary-card h3 {
+            margin: 0 0 10px 0;
+            color: #666;
+            font-size: 16px;
+        }
+
+        .summary-card p {
+            margin: 0;
+            font-size: 24px;
+            font-weight: bold;
+            color: #4CAF50;
+        }
+
+        .rankings {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .ranking-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
-        .card-header {
+
+        .ranking-card h3 {
+            margin: 0 0 15px 0;
+            color: #333;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .ranking-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .ranking-list li {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .ranking-list li:last-child {
+            border-bottom: none;
+        }
+
+        .table-container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+
+        th {
             background-color: #f8f9fa;
-            border-bottom: 1px solid #dee2e6;
-            padding: 1rem;
-        }
-        .table th {
-            background-color: #f8f9fa;
-        }
-        /* Add scrolling for table */
-        .dataTables_wrapper {
-            max-height: 600px;
-            overflow-y: auto;
-        }
-        /* Ensure table header stays visible */
-        .table thead th {
+            font-weight: bold;
             position: sticky;
             top: 0;
             z-index: 1;
-            background-color: #f8f9fa;
         }
-        /* Fix table width */
-        .table {
-            width: 100% !important;
-            margin-bottom: 0 !important;
-        }
-        /* Highlight cells */
-        td.highlight-high {
+
+        .highlight-high {
             background-color: #90EE90 !important;
             font-weight: bold;
         }
-        td.highlight-low {
+
+        .highlight-low {
             background-color: #FFB6C6 !important;
             font-weight: bold;
         }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+
+        .chart-container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            height: 400px;
+        }
+
+        .filter-icon {
+            margin-left: 5px;
+            cursor: pointer;
+            color: #666;
+        }
+
+        .filter-icon:hover {
+            color: #4CAF50;
+        }
+
+        @media (max-width: 768px) {
+            .summary {
+                grid-template-columns: 1fr;
+            }
+            
+            .rankings {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-        <div class="container-fluid">
-            <a class="navbar-brand" href="/">Jesse's Bakery</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav">
-                    <li class="nav-item">
-                        <a class="nav-link" href="/">Home</a>
-                    </li>
+    <div class="header">
+        <div class="header-left">
+            <a href="index.html" class="back-button">
+                <i class="fas fa-arrow-left"></i>
+                Back
+            </a>
+            <h1 class="title">Regional Performance</h1>
+        </div>
+    </div>
+
+    <div id="summary" class="summary">
+        <!-- Summary cards will be populated here -->
+    </div>
+
+    <div class="rankings">
+        <div class="ranking-card">
+            <h3><i class="fas fa-chart-line"></i> Top Performing Regions</h3>
+            <ul class="ranking-list" id="topRegions">
+                <!-- Top regions will be populated here -->
                 </ul>
             </div>
+        <div class="ranking-card">
+            <h3><i class="fas fa-chart-line-down"></i> Bottom Performing Regions</h3>
+            <ul class="ranking-list" id="bottomRegions">
+                <!-- Bottom regions will be populated here -->
+            </ul>
         </div>
-    </nav>
-
-    <div class="container-fluid mt-4">
-        <div class="row">
-            <div class="col">
-                <h2>Regional Performance</h2>
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="card-title mb-0">Weekly Sales Comparison</h5>
                     </div>
-                    <div class="card-body">
-                        <div class="table-responsive">
-                            <table id="regionalTable" class="table table-striped table-bordered">
+
+    <div class="table-container">
+        <div id="loading" class="loading">Loading regional performance data...</div>
+        <table id="regionalTable">
                                 <thead>
                                     <tr>
-                                        <th>Week Label</th>
-                                        <th>Region</th>
+                    <th>Week Label<i class="fas fa-filter filter-icon" onclick="showFilter('week')"></i></th>
+                    <th>Region<i class="fas fa-filter filter-icon" onclick="showFilter('region')"></i></th>
                                         <th>Sunday</th>
                                         <th>Monday</th>
                                         <th>Tuesday</th>
@@ -105,142 +246,223 @@
                                 </thead>
                                 <tbody></tbody>
                             </table>
-                        </div>
-                    </div>
                 </div>
 
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="card-title mb-0">Performance Trend</h5>
-                    </div>
-                    <div class="card-body">
                         <div class="chart-container">
                             <canvas id="performanceChart"></canvas>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
     </div>
 
     <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
-    <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
-    <script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
-    <script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <script>
-        $(document).ready(function() {
-            let table;
-            let chart;
+        let allData = [];
+        let filteredData = [];
+        let filters = {
+            week: new Set(),
+            region: new Set()
+        };
 
-            function findHighestLowestValues(data) {
-                const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-                const weekLabels = [...new Set(data.map(row => row.Week_Label))];
+        function showFilter(type) {
+            const values = [...new Set(allData.map(item => type === 'week' ? item.Week_Label : item.Region))];
+            const currentFilters = filters[type];
+            
+            const filterHtml = values.map(value => `
+                <div>
+                    <input type="checkbox" 
+                           id="${value}" 
+                           ${currentFilters.has(value) ? 'checked' : ''}
+                           onchange="updateFilter('${type}', '${value}', this.checked)">
+                    <label for="${value}">${value}</label>
+                </div>
+            `).join('');
+
+            const dialog = document.createElement('div');
+            dialog.style.position = 'fixed';
+            dialog.style.top = '50%';
+            dialog.style.left = '50%';
+            dialog.style.transform = 'translate(-50%, -50%)';
+            dialog.style.background = 'white';
+            dialog.style.padding = '20px';
+            dialog.style.borderRadius = '8px';
+            dialog.style.boxShadow = '0 2px 10px rgba(0,0,0,0.1)';
+            dialog.style.maxHeight = '80vh';
+            dialog.style.overflow = 'auto';
+            dialog.style.zIndex = '1000';
+
+            dialog.innerHTML = `
+                <h3>Filter by ${type === 'week' ? 'Week' : 'Region'}</h3>
+                ${filterHtml}
+                <div style="margin-top: 20px; text-align: right;">
+                    <button onclick="this.parentElement.parentElement.remove()" 
+                            style="padding: 8px 16px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                        Close
+                    </button>
+                </div>
+            `;
+
+            document.body.appendChild(dialog);
+        }
+
+        function updateFilter(type, value, checked) {
+            if (checked) {
+                filters[type].add(value);
+                    } else {
+                filters[type].delete(value);
+            }
+            applyFilters();
+        }
+
+        function applyFilters() {
+            filteredData = allData.filter(item => {
+                const weekMatch = filters.week.size === 0 || filters.week.has(item.Week_Label);
+                const regionMatch = filters.region.size === 0 || filters.region.has(item.Region);
+                return weekMatch && regionMatch;
+            });
+
+            renderData(filteredData);
+        }
+
+        function findHighestLowestValues(data) {
+            const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+            const weekLabels = [...new Set(data.map(row => row.Week_Label))];
+            
+            const highlights = {};
+            weekLabels.forEach(weekLabel => {
+                const weekData = data.filter(row => row.Week_Label === weekLabel);
+                highlights[weekLabel] = {};
                 
-                const highlights = {};
-                weekLabels.forEach(weekLabel => {
-                    const weekData = data.filter(row => row.Week_Label === weekLabel);
-                    highlights[weekLabel] = {};
+                days.forEach(day => {
+                    const values = weekData.map(row => parseFloat(row[day]) || 0);
+                    const max = Math.max(...values);
+                    const min = Math.min(...values);
                     
-                    days.forEach(day => {
-                        const values = weekData.map(row => parseFloat(row[day]) || 0);
-                        const max = Math.max(...values);
-                        const min = Math.min(...values);
-                        
-                        highlights[weekLabel][day] = {
-                            highest: max,
-                            lowest: min
-                        };
-                    });
+                    highlights[weekLabel][day] = {
+                        highest: max,
+                        lowest: min
+                    };
                 });
-                
-                return highlights;
-            }
+            });
+            
+            return highlights;
+        }
 
-            function initializeTable(data) {
-                console.log('Initializing DataTable...');
-                const highlights = findHighestLowestValues(data);
-                
-                if (table) {
-                    table.destroy();
+        function updateSummary(data) {
+            const totalQuantity = data.reduce((sum, row) => sum + row.Total_Week_Quantity, 0);
+            const uniqueRegions = new Set(data.map(row => row.Region)).size;
+            const weekCount = new Set(data.map(row => row.Week_Label)).size;
+            const avgQuantityPerWeek = Math.round(totalQuantity / weekCount);
+
+            document.getElementById('summary').innerHTML = `
+                <div class="summary-card">
+                    <h3>Total Quantity</h3>
+                    <p>${totalQuantity.toLocaleString()}</p>
+                </div>
+                <div class="summary-card">
+                    <h3>Average Weekly Quantity</h3>
+                    <p>${avgQuantityPerWeek.toLocaleString()}</p>
+                </div>
+                <div class="summary-card">
+                    <h3>Number of Regions</h3>
+                    <p>${uniqueRegions}</p>
+                </div>
+                <div class="summary-card">
+                    <h3>Weeks Analyzed</h3>
+                    <p>${weekCount}</p>
+                </div>
+            `;
+        }
+
+        function updateRankings(data) {
+            const regionTotals = {};
+            data.forEach(row => {
+                if (!regionTotals[row.Region]) {
+                    regionTotals[row.Region] = 0;
                 }
-                
-                table = $('#regionalTable').DataTable({
-                    data: data,
-                    columns: [
-                        { data: 'Week_Label', title: 'Week Label' },
-                        { data: 'Region', title: 'Region' },
-                        { data: 'Sunday', title: 'Sunday' },
-                        { data: 'Monday', title: 'Monday' },
-                        { data: 'Tuesday', title: 'Tuesday' },
-                        { data: 'Wednesday', title: 'Wednesday' },
-                        { data: 'Thursday', title: 'Thursday' },
-                        { data: 'Friday', title: 'Friday' },
-                        { data: 'Saturday', title: 'Saturday' },
-                        { data: 'Total_Week_Quantity', title: 'Total Week Quantity' }
-                    ],
-                    order: [[0, 'desc'], [1, 'asc']],
-                    paging: false,
-                    scrollY: '500px',
-                    scrollCollapse: true,
-                    dom: 'Bfrtip',
-                    buttons: ['copy', 'csv', 'excel', 'pdf', 'print'],
-                    createdRow: function(row, data, index) {
-                        const weekHighlights = highlights[data.Week_Label];
-                        if (weekHighlights) {
-                            ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].forEach((day, i) => {
-                                const cell = row.children[i + 2]; // +2 because first two columns are Week_Label and Region
-                                const value = parseFloat(data[day]) || 0;
-                                
-                                if (value === weekHighlights[day].highest && value !== weekHighlights[day].lowest) {
-                                    $(cell).addClass('highlight-high');
-                                } else if (value === weekHighlights[day].lowest && value !== weekHighlights[day].highest) {
-                                    $(cell).addClass('highlight-low');
-                                }
-                            });
-                        }
-                    }
-                });
-                
-                // Force table width calculation
-                table.columns.adjust();
-                
-                console.log('DataTable initialized successfully');
-            }
+                regionTotals[row.Region] += row.Total_Week_Quantity;
+            });
 
-            function updateChart(data) {
-                console.log('Updating chart...');
-                
-                const regions = [...new Set(data.map(row => row.Region))];
-                const weeks = [...new Set(data.map(row => row.Week_Label))].sort();
-                
-                const datasets = regions.map((region, index) => {
-                    const regionData = data.filter(row => row.Region === region);
-                    const weeklyTotals = weeks.map(week => {
-                        const weekData = regionData.find(row => row.Week_Label === week);
-                        return weekData ? weekData.Total_Week_Quantity : 0;
-                    });
+            const sortedRegions = Object.entries(regionTotals)
+                .sort(([,a], [,b]) => b - a)
+                .map(([region, total]) => ({ region, total }));
+
+            const topRegions = sortedRegions.slice(0, 5);
+            const bottomRegions = sortedRegions.slice(-5).reverse();
+
+            document.getElementById('topRegions').innerHTML = topRegions.map((item, index) => `
+                <li>
+                    <span>${index + 1}. ${item.region}</span>
+                    <span>${item.total.toLocaleString()}</span>
+                </li>
+            `).join('');
+
+            document.getElementById('bottomRegions').innerHTML = bottomRegions.map((item, index) => `
+                <li>
+                    <span>${index + 1}. ${item.region}</span>
+                    <span>${item.total.toLocaleString()}</span>
+                </li>
+            `).join('');
+        }
+
+        function renderData(data) {
+            const highlights = findHighestLowestValues(data);
+            const tableBody = document.querySelector('#regionalTable tbody');
+            
+            tableBody.innerHTML = data.map(row => `
+                <tr>
+                    <td>${row.Week_Label}</td>
+                    <td>${row.Region}</td>
+                    <td class="${row.Sunday === highlights[row.Week_Label].Sunday.highest ? 'highlight-high' : 
+                               row.Sunday === highlights[row.Week_Label].Sunday.lowest ? 'highlight-low' : ''}">${row.Sunday}</td>
+                    <td class="${row.Monday === highlights[row.Week_Label].Monday.highest ? 'highlight-high' : 
+                               row.Monday === highlights[row.Week_Label].Monday.lowest ? 'highlight-low' : ''}">${row.Monday}</td>
+                    <td class="${row.Tuesday === highlights[row.Week_Label].Tuesday.highest ? 'highlight-high' : 
+                               row.Tuesday === highlights[row.Week_Label].Tuesday.lowest ? 'highlight-low' : ''}">${row.Tuesday}</td>
+                    <td class="${row.Wednesday === highlights[row.Week_Label].Wednesday.highest ? 'highlight-high' : 
+                               row.Wednesday === highlights[row.Week_Label].Wednesday.lowest ? 'highlight-low' : ''}">${row.Wednesday}</td>
+                    <td class="${row.Thursday === highlights[row.Week_Label].Thursday.highest ? 'highlight-high' : 
+                               row.Thursday === highlights[row.Week_Label].Thursday.lowest ? 'highlight-low' : ''}">${row.Thursday}</td>
+                    <td class="${row.Friday === highlights[row.Week_Label].Friday.highest ? 'highlight-high' : 
+                               row.Friday === highlights[row.Week_Label].Friday.lowest ? 'highlight-low' : ''}">${row.Friday}</td>
+                    <td class="${row.Saturday === highlights[row.Week_Label].Saturday.highest ? 'highlight-high' : 
+                               row.Saturday === highlights[row.Week_Label].Saturday.lowest ? 'highlight-low' : ''}">${row.Saturday}</td>
+                    <td>${row.Total_Week_Quantity}</td>
+                </tr>
+            `).join('');
+
+            updateChart(data);
+            updateSummary(data);
+            updateRankings(data);
+        }
+
+        function updateChart(data) {
+            const regions = [...new Set(data.map(row => row.Region))];
+            const weeks = [...new Set(data.map(row => row.Week_Label))].sort();
+            
+            const datasets = regions.map((region, index) => {
+                const regionData = data.filter(row => row.Region === region);
+                const weeklyTotals = weeks.map(week => {
+                    const weekData = regionData.find(row => row.Week_Label === week);
+                    return weekData ? weekData.Total_Week_Quantity : 0;
+                });
 
                     return {
-                        label: region,
-                        data: weeklyTotals,
-                        borderColor: `hsl(${index * 360 / regions.length}, 70%, 50%)`,
+                    label: region,
+                    data: weeklyTotals,
+                    borderColor: `hsl(${index * 360 / regions.length}, 70%, 50%)`,
                         fill: false
                     };
                 });
 
-                if (chart) {
-                    chart.destroy();
+            const ctx = document.getElementById('performanceChart').getContext('2d');
+            if (window.chart) {
+                window.chart.destroy();
                 }
 
-                chart = new Chart($('#performanceChart'), {
+            window.chart = new Chart(ctx, {
                     type: 'line',
                     data: {
-                        labels: weeks,
+                    labels: weeks,
                         datasets: datasets
                     },
                     options: {
@@ -251,62 +473,58 @@
                                 beginAtZero: true,
                                 title: {
                                     display: true,
-                                    text: 'Total Weekly Sales Quantity'
-                                }
-                            },
-                            x: {
-                                title: {
-                                    display: true,
-                                    text: 'Week'
-                                }
+                                text: 'Total Weekly Sales Quantity'
+                            }
                             }
                         },
                         plugins: {
                             title: {
                                 display: true,
-                                text: 'Regional Weekly Performance Comparison'
+                            text: 'Regional Weekly Performance Comparison'
                             },
                             legend: {
-                                position: 'bottom',
-                                labels: {
-                                    boxWidth: 12
-                                }
-                            }
+                            position: 'bottom'
                         }
+                    }
+                }
+            });
+        }
+
+        async function fetchData() {
+            const loadingElement = document.getElementById('loading');
+            loadingElement.style.display = 'block';
+
+            try {
+                const response = await fetch('/api/regional-performance', {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json'
                     }
                 });
-            }
 
-            async function fetchData() {
-                console.log('Fetching regional performance data...');
-                try {
-                    const response = await fetch('/api/regional-performance', {
-                        method: 'GET',
-                        headers: {
-                            'Accept': 'application/json'
-                        }
-                    });
-
-                    if (!response.ok) {
-                        const errorText = await response.text();
-                        console.error('API request failed:', response.status, errorText);
-                        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
-                    }
-
-                    const data = await response.json();
-                    console.log(`Received ${data.length} records`);
-
-                    initializeTable(data);
-                    updateChart(data);
-                } catch (error) {
-                    console.error('Error fetching data:', error);
-                    $('#regionalTable').html(`<div class="error">Error loading data: ${error.message}</div>`);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
                 }
-            }
 
-            // Initial fetch
-            fetchData();
-        });
+                allData = await response.json();
+                filteredData = allData;
+                
+                if (allData.length === 0) {
+                    loadingElement.textContent = 'No data available for the selected period';
+                    return;
+                }
+
+                loadingElement.style.display = 'none';
+                renderData(allData);
+
+            } catch (error) {
+                console.error('Error fetching data:', error);
+                loadingElement.textContent = `Error loading data: ${error.message}`;
+            }
+        }
+
+        // Initialize the page
+        document.addEventListener('DOMContentLoaded', fetchData);
     </script>
 </body>
 </html> 
