@@ -291,13 +291,39 @@ app.get('/api/stores', async (req, res) => {
   }
   
   try {
-    const result = await pool.request()
+    // Get regions for dropdown lists
+    const regionsResult = await pool.request()
+      .query(`
+        SELECT DISTINCT Region FROM Stores_Master
+        WHERE Region IS NOT NULL AND Region <> ''
+        ORDER BY Region
+      `);
+    
+    const regions = regionsResult.recordset.map(r => r.Region);
+    
+    // Get stores with validation to ensure only existing columns are returned
+    const storesResult = await pool.request()
       .query(`
         SELECT * FROM Stores_Master
         ORDER BY Store_Name;
       `);
     
-    res.json(result.recordset);
+    // Get current timestamp for last run date
+    const now = new Date();
+    
+    // Format the response with stores and regions
+    // Explicitly exclude any timestamp fields that might be returned
+    const stores = storesResult.recordset.map(store => {
+      // Create a new object without timestamp fields
+      const { Created_At, Updated_At, ...cleanStore } = store;
+      return cleanStore;
+    });
+    
+    res.json({
+      stores: stores,
+      regions: regions,
+      lastRunDate: now.toISOString()
+    });
   } catch (err) {
     logger.error('Error fetching stores data:', err);
     res.status(500).json({ 
@@ -359,7 +385,10 @@ app.get('/api/stores/:storeId', async (req, res) => {
       return res.status(404).json({ error: 'Store not found' });
     }
     
-    res.json(result.recordset[0]);
+    // Remove any timestamp fields before returning
+    const { Created_At, Updated_At, ...cleanStore } = result.recordset[0];
+    
+    res.json(cleanStore);
   } catch (err) {
     logger.error(`Error fetching store ${storeId}:`, err);
     res.status(500).json({ 
@@ -448,7 +477,15 @@ app.post('/api/stores', async (req, res) => {
     
     const result = await request.query(query);
     logger.info(`Store created with ID: ${storeId}`);
-    res.status(201).json({ storeId: storeId, store: result.recordset[0] });
+
+    // Filter out timestamp fields from response
+    let storeData = {};
+    if (result.recordset.length > 0) {
+      const { Created_At, Updated_At, ...cleanStore } = result.recordset[0];
+      storeData = cleanStore;
+    }
+
+    res.status(201).json({ storeId: storeId, store: storeData });
   } catch (err) {
     logger.error('Error creating store:', err);
     res.status(500).json({ 
@@ -541,7 +578,9 @@ app.put('/api/stores/:storeId', async (req, res) => {
     logger.info(`Store ${storeId} updated successfully`);
     
     if (result.recordset.length > 0) {
-      res.json(result.recordset[0]);
+      // Filter out timestamp fields from response
+      const { Created_At, Updated_At, ...cleanStore } = result.recordset[0];
+      res.json(cleanStore);
     } else {
       res.json({ message: 'Store updated successfully' });
     }
@@ -748,11 +787,18 @@ app.post('/api/stores/:storeId/diagnostic-update', async (req, res) => {
     
     const result = await request.query(updateQuery);
     
+    // Filter out timestamp fields from the response
+    let cleanData = {};
+    if (result.recordset.length > 0) {
+      const { Created_At, Updated_At, ...cleanStore } = result.recordset[0];
+      cleanData = cleanStore;
+    }
+
     res.json({
       success: true,
       message: 'Diagnostic update successful',
       updatedFields: updateFields,
-      data: result.recordset[0]
+      data: cleanData
     });
   } catch (err) {
     logger.error(`Error in diagnostic update for store ${storeId}:`, err);
@@ -802,11 +848,18 @@ app.get('/api/stores/:storeId/test-update', async (req, res) => {
           SELECT * FROM Stores_Master WHERE Store_ID = @Store_ID;
         `);
       
+      // Filter out timestamp fields from response
+      let storeData = {};
+      if (result.recordset.length > 0) {
+        const { Created_At, Updated_At, ...cleanStore } = result.recordset[0];
+        storeData = cleanStore;
+      }
+      
       logger.info(`Test update successful for store ${storeId}`);
       res.json({
         success: true,
         message: 'Test update successful',
-        store: result.recordset[0]
+        store: storeData
       });
     } catch (sqlErr) {
       logger.error(`=== TEST UPDATE SQL ERROR ===`);
@@ -900,7 +953,7 @@ app.get('/api/verify-schema', async (req, res) => {
           ORDINAL_POSITION;
       `);
     
-    // Expected columns from the actual database schema
+    // Expected columns from the actual database schema (without timestamps)
     const expectedColumns = [
       'Store_ID', 'Store_Name', 'Region', 'State', 'Active',
       'Run_ID', 'Shelf_Limit', 'Latitude', 'Longitude',
@@ -915,7 +968,10 @@ app.get('/api/verify-schema', async (req, res) => {
     // Check which expected columns exist and which are missing
     const existingColumns = schemaResult.recordset.map(col => col.COLUMN_NAME);
     const missingColumns = expectedColumns.filter(col => !existingColumns.includes(col));
-    const extraColumns = existingColumns.filter(col => !expectedColumns.includes(col));
+    const extraColumns = existingColumns.filter(col => 
+      !expectedColumns.includes(col) && 
+      !['Created_At', 'Updated_At'].includes(col) // Ignore timestamp fields in extra columns
+    );
 
     res.json({
       status: 'success',
@@ -925,7 +981,8 @@ app.get('/api/verify-schema', async (req, res) => {
         existingColumns,
         missingColumns,
         extraColumns,
-        allColumnsPresent: missingColumns.length === 0
+        allColumnsPresent: missingColumns.length === 0,
+        notExpectedTimestampFields: existingColumns.filter(col => ['Created_At', 'Updated_At'].includes(col))
       }
     });
     

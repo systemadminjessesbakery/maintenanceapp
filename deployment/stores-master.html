@@ -647,34 +647,35 @@
                 'Run_ID', 'Shelf_Limit', 'Latitude', 'Longitude',
                 'INVOICED', 'XERO_CODE', 'XERO_CUSTOMERID',
                 'SUN_OVERRIDE', 'MON_OVERRIDE', 'TUE_OVERRIDE',
-                'WED_OVERRIDE', 'THU_OVERRIDE', 'FRI_OVERRIDE', 'SAT_OVERRIDE'
+                'WED_OVERRIDE', 'THU_OVERRIDE', 'FRI_OVERRIDE', 'SAT_OVERRIDE',
+                'Created_At', 'Updated_At' // Explicitly exclude timestamp fields
             ];
 
             // Get columns from first row and filter out excluded ones
             const columns = Object.keys(data[0]).filter(col => !excludeColumns.includes(col));
             
             // Add headers with filter icons
-                columns.forEach(column => {
-                    const th = document.createElement('th');
+            columns.forEach(column => {
+                const th = document.createElement('th');
                 th.innerHTML = `${column} <span class="filter-icon" onclick="showFilter('${column}', this)">🔍</span>`;
                 if (activeFilters[column]) {
                     th.classList.add('filtered');
                 }
-                    thead.appendChild(th);
-                });
+                thead.appendChild(th);
+            });
             
             // Add action column header
             const actionTh = document.createElement('th');
             actionTh.textContent = 'Actions';
             thead.appendChild(actionTh);
 
-                // Create table rows
+            // Create table rows
             data.forEach((row, index) => {
-                    const tr = document.createElement('tr');
+                const tr = document.createElement('tr');
                 tr.dataset.storeId = row.Store_ID;
                 
-                    columns.forEach(column => {
-                        const td = document.createElement('td');
+                columns.forEach(column => {
+                    const td = document.createElement('td');
                     if (['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'].includes(column)) {
                         const checkbox = document.createElement('input');
                         checkbox.type = 'checkbox';
@@ -722,8 +723,8 @@
                             td.dataset.isCheckbox = 'true';
                         }
                     }
-                        tr.appendChild(td);
-                    });
+                    tr.appendChild(td);
+                });
                 
                 // Add action buttons
                 const actionTd = document.createElement('td');
@@ -734,7 +735,7 @@
                 actionTd.appendChild(editBtn);
                 tr.appendChild(actionTd);
                 
-                    tbody.appendChild(tr);
+                tbody.appendChild(tr);
             });
         }
 
@@ -1333,7 +1334,8 @@
                 'Run_ID', 'Shelf_Limit', 'Latitude', 'Longitude',
                 'INVOICED', 'XERO_CODE', 'XERO_CUSTOMERID',
                 'SUN_OVERRIDE', 'MON_OVERRIDE', 'TUE_OVERRIDE',
-                'WED_OVERRIDE', 'THU_OVERRIDE', 'FRI_OVERRIDE', 'SAT_OVERRIDE'
+                'WED_OVERRIDE', 'THU_OVERRIDE', 'FRI_OVERRIDE', 'SAT_OVERRIDE',
+                'Created_At', 'Updated_At' // Explicitly exclude timestamp fields
             ];
 
             // Create workbook data
@@ -1388,7 +1390,8 @@
                 'Run_ID', 'Shelf_Limit', 'Latitude', 'Longitude',
                 'INVOICED', 'XERO_CODE', 'XERO_CUSTOMERID',
                 'SUN_OVERRIDE', 'MON_OVERRIDE', 'TUE_OVERRIDE',
-                'WED_OVERRIDE', 'THU_OVERRIDE', 'FRI_OVERRIDE', 'SAT_OVERRIDE'
+                'WED_OVERRIDE', 'THU_OVERRIDE', 'FRI_OVERRIDE', 'SAT_OVERRIDE',
+                'Created_At', 'Updated_At' // Explicitly exclude timestamp fields
             ];
 
             // Calculate column widths based on content
