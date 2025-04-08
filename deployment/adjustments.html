@@ -321,6 +321,57 @@
         .clear-filters:hover {
             background-color: #f57c00;
         }
+
+        .day-input {
+            width: 60px;
+            padding: 4px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            text-align: right;
+            background-color: transparent;
+        }
+
+        .day-input:disabled {
+            border-color: transparent;
+            background-color: transparent;
+            color: inherit;
+        }
+
+        .day-input:enabled {
+            background-color: white;
+            border-color: #007bff;
+        }
+
+        .btn {
+            padding: 4px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            border: none;
+            font-size: 14px;
+        }
+
+        .btn-edit {
+            background-color: #007bff;
+            color: white;
+        }
+
+        .btn-save {
+            background-color: #28a745;
+            color: white;
+            margin-right: 4px;
+        }
+
+        .btn-cancel {
+            background-color: #dc3545;
+            color: white;
+        }
+
+        .editable input[type="text"] {
+            width: 100%;
+            padding: 4px;
+            border: 1px solid #007bff;
+            border-radius: 4px;
+        }
     </style>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -333,6 +384,8 @@
         let stores = [];
         let products = [];
         let activeFilters = {};
+        let editingRow = null;
+        let originalData = null;
 
         function showStatusMessage(message, isSuccess) {
             const statusDiv = document.getElementById('status-message');
@@ -413,136 +466,122 @@
         }
 
         function populateTable(data) {
-            if (!Array.isArray(data)) {
-                console.error('Invalid data format for table population');
-                return;
-            }
-
             const tbody = document.querySelector('#adjustmentsTable tbody');
             tbody.innerHTML = '';
-            
-            data.forEach(adjustment => {
-                const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td>${adjustment.Store_ID}</td>
-                    <td>${adjustment.Store_Name}</td>
-                    <td>${adjustment.Product_ID}</td>
-                    <td>${adjustment.Product_Description}</td>
-                    <td class="editable" data-id="${adjustment.Adjustment_ID}" data-field="SUNDAY">${adjustment.SUNDAY || 0}</td>
-                    <td class="editable" data-id="${adjustment.Adjustment_ID}" data-field="MONDAY">${adjustment.MONDAY || 0}</td>
-                    <td class="editable" data-id="${adjustment.Adjustment_ID}" data-field="TUESDAY">${adjustment.TUESDAY || 0}</td>
-                    <td class="editable" data-id="${adjustment.Adjustment_ID}" data-field="WEDNESDAY">${adjustment.WEDNESDAY || 0}</td>
-                    <td class="editable" data-id="${adjustment.Adjustment_ID}" data-field="THURSDAY">${adjustment.THURSDAY || 0}</td>
-                    <td class="editable" data-id="${adjustment.Adjustment_ID}" data-field="FRIDAY">${adjustment.FRIDAY || 0}</td>
-                    <td class="editable" data-id="${adjustment.Adjustment_ID}" data-field="SATURDAY">${adjustment.SATURDAY || 0}</td>
-                    <td>${adjustment.Week_Total || 0}</td>
-                    <td>
-                        <button class="edit-button" onclick="toggleEditMode(this)">
-                            <i class="fas fa-edit"></i>
-                        </button>
-                    </td>
-                `;
 
-                // Add click handlers for editable cells
-                const editableCells = row.querySelectorAll('.editable');
-                editableCells.forEach(cell => {
-                    cell.addEventListener('click', function() {
-                        if (!this.parentElement.classList.contains('edit-mode')) return;
-                        if (this.querySelector('input')) return;
-                        
-                        const id = this.dataset.id;
-                        const field = this.dataset.field;
-                        const currentValue = this.textContent;
-                        
+            data.forEach(adjustment => {
+                const tr = document.createElement('tr');
+                tr.dataset.adjustmentId = adjustment.Adjustment_ID;
+
+                // Add cells for each column
+                Object.entries(adjustment).forEach(([key, value]) => {
+                    const td = document.createElement('td');
+                    td.dataset.column = key;
+                    
+                    if (['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'].includes(key)) {
+                        // Create number input for day values
                         const input = document.createElement('input');
                         input.type = 'number';
-                        input.min = '0';
-                        input.value = currentValue;
-                        input.className = 'edit-input';
-                        
-                        input.addEventListener('blur', async function() {
-                            const newValue = parseInt(this.value) || 0;
-                            if (newValue !== parseInt(currentValue)) {
-                                try {
-                                    const adjustment = adjustments.find(a => a.Adjustment_ID === parseInt(id));
-                                    if (!adjustment) throw new Error('Adjustment not found');
-                                    
-                                    adjustment[field] = newValue;
-                                    
-                                    // Update week total
-                                    adjustment.Week_Total = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY']
-                                        .reduce((sum, day) => sum + (parseInt(adjustment[day]) || 0), 0);
-                                    
-                                    const response = await fetch('/api/adjustments/update', {
-                                        method: 'POST',
-                                        headers: {
-                                            'Content-Type': 'application/json'
-                                        },
-                                        body: JSON.stringify(adjustment)
-                                    });
-
-                                    if (!response.ok) {
-                                        throw new Error('Failed to update adjustment');
-                                    }
-
-                                    this.parentElement.textContent = newValue.toLocaleString();
-                                    const weekTotalCell = this.parentElement.parentElement.querySelector('td:nth-last-child(2)');
-                                    weekTotalCell.textContent = adjustment.Week_Total.toLocaleString();
-                                    updateMetrics(adjustments);
-                                    showStatusMessage('Adjustment updated successfully', true);
-                                } catch (error) {
-                                    console.error('Error updating adjustment:', error);
-                                    this.parentElement.textContent = currentValue;
-                                    showStatusMessage('Error updating adjustment: ' + error.message, false);
-                                }
-                            } else {
-                                this.parentElement.textContent = currentValue;
-                            }
-                        });
-
-                        input.addEventListener('keydown', function(e) {
-                            if (e.key === 'Enter') {
-                                this.blur();
-                            }
-                        });
-
-                        this.textContent = '';
-                        this.appendChild(input);
-                        input.focus();
-                        input.select();
-                    });
+                        input.value = value || 0;
+                        input.min = 0;
+                        input.disabled = true;
+                        input.className = 'day-input';
+                        td.appendChild(input);
+                    } else {
+                        td.textContent = value !== null ? value : '';
+                    }
+                    
+                    if (key !== 'Adjustment_ID' && key !== 'Created_At' && key !== 'Updated_At') {
+                        td.dataset.editable = 'true';
+                    }
+                    
+                    tr.appendChild(td);
                 });
 
-                tbody.appendChild(row);
+                // Add action buttons
+                const actionTd = document.createElement('td');
+                const editBtn = document.createElement('button');
+                editBtn.textContent = 'Edit';
+                editBtn.className = 'btn btn-edit';
+                editBtn.onclick = () => startEditing(tr);
+                actionTd.appendChild(editBtn);
+                tr.appendChild(actionTd);
+
+                tbody.appendChild(tr);
             });
         }
 
-        function toggleEditMode(button) {
-            const row = button.closest('tr');
-            const isEditMode = row.classList.contains('edit-mode');
-            
-            // Remove edit mode from all rows
-            document.querySelectorAll('tr.edit-mode').forEach(r => {
-                r.classList.remove('edit-mode');
-                r.querySelectorAll('.editable').forEach(cell => {
-                    cell.classList.remove('editing');
-                });
-            });
-            
-            // Toggle edit mode for the clicked row
-            if (!isEditMode) {
-                row.classList.add('edit-mode');
-                row.querySelectorAll('.editable').forEach(cell => {
-                    cell.classList.add('editing');
-                });
-                button.innerHTML = '<i class="fas fa-check"></i>';
-            } else {
-                row.classList.remove('edit-mode');
-                row.querySelectorAll('.editable').forEach(cell => {
-                    cell.classList.remove('editing');
-                });
-                button.innerHTML = '<i class="fas fa-edit"></i>';
+        function startEditing(row) {
+            if (editingRow && editingRow !== row) {
+                cancelEditing();
             }
+
+            editingRow = row;
+            const cells = row.getElementsByTagName('td');
+            originalData = {};
+
+            // Convert cells to input fields
+            for (let i = 0; i < cells.length - 1; i++) {
+                const cell = cells[i];
+                if (cell.dataset.editable === 'true') {
+                    const column = cell.dataset.column;
+                    
+                    if (['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'].includes(column)) {
+                        // Enable the number input
+                        const input = cell.querySelector('input[type="number"]');
+                        if (input) {
+                            originalData[column] = parseInt(input.value) || 0;
+                            input.disabled = false;
+                        }
+                    } else {
+                        // Regular text input for other fields
+                        const value = cell.textContent;
+                        originalData[column] = value;
+                        cell.innerHTML = `<input type="text" value="${value}" class="editable">`;
+                    }
+                    cell.classList.add('editable');
+                }
+            }
+
+            // Replace edit button with save/cancel buttons
+            const actionCell = cells[cells.length - 1];
+            actionCell.innerHTML = `
+                <button class="btn btn-save" onclick="saveChanges('${row.dataset.adjustmentId}')">Save</button>
+                <button class="btn btn-cancel" onclick="cancelEditing()">Cancel</button>
+            `;
+        }
+
+        function cancelEditing() {
+            if (!editingRow) return;
+
+            const cells = editingRow.getElementsByTagName('td');
+            
+            // Restore original values
+            for (let i = 0; i < cells.length - 1; i++) {
+                const cell = cells[i];
+                if (cell.dataset.editable === 'true') {
+                    const column = cell.dataset.column;
+                    
+                    if (['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'].includes(column)) {
+                        // Disable and restore the number input
+                        const input = cell.querySelector('input[type="number"]');
+                        if (input) {
+                            input.value = originalData[column] || 0;
+                            input.disabled = true;
+                        }
+                    } else {
+                        cell.textContent = originalData[column];
+                    }
+                    cell.classList.remove('editable');
+                }
+            }
+
+            // Restore edit button
+            const actionCell = cells[cells.length - 1];
+            actionCell.innerHTML = `<button class="btn btn-edit" onclick="startEditing(this.closest('tr'))">Edit</button>`;
+
+            editingRow = null;
+            originalData = null;
         }
 
         function addNewAdjustment() {
@@ -928,6 +967,80 @@
                 option.textContent = `${product.Product_ID} - ${product.Product_Description}`;
                 select.appendChild(option);
             });
+        }
+
+        async function saveChanges(adjustmentId) {
+            if (!editingRow) return;
+
+            const updates = {};
+            const cells = editingRow.getElementsByTagName('td');
+
+            // Gather changes
+            for (let i = 0; i < cells.length - 1; i++) {
+                const cell = cells[i];
+                if (cell.dataset.editable === 'true') {
+                    const column = cell.dataset.column;
+                    let newValue;
+                    
+                    if (['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'].includes(column)) {
+                        const input = cell.querySelector('input[type="number"]');
+                        newValue = parseInt(input ? input.value : '0') || 0;
+                        updates[column] = newValue;
+                    } else {
+                        const input = cell.querySelector('input');
+                        newValue = input ? input.value.trim() : '';
+                        if (newValue !== originalData[column]) {
+                            updates[column] = newValue;
+                        }
+                    }
+                }
+            }
+
+            // Calculate Week_Total as integer
+            updates.Week_Total = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY']
+                .reduce((total, day) => total + (updates[day] || 0), 0);
+
+            console.log(`DEBUG: Saving updates for adjustment ${adjustmentId}:`, JSON.stringify(updates));
+
+            try {
+                console.log(`Making PUT request to /api/adjustments/${adjustmentId}`);
+                const response = await fetch(`/api/adjustments/${adjustmentId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(updates)
+                });
+
+                console.log(`Response status: ${response.status}`);
+                
+                if (!response.ok) {
+                    let errorMessage = `Failed to save changes: ${response.statusText}`;
+                    let errorDetails = '';
+                    
+                    try {
+                        const errorData = await response.json();
+                        console.log('Error response data:', errorData);
+                        errorMessage = errorData.error || errorData.details || errorMessage;
+                        if (errorData.query) {
+                            errorDetails = `Error in query: ${errorData.query}`;
+                        }
+                    } catch (e) {
+                        console.log('Could not parse error response as JSON:', e);
+                    }
+                    
+                    throw new Error(errorMessage + (errorDetails ? ' - ' + errorDetails : ''));
+                }
+
+                const result = await response.json();
+                console.log("Update successful:", result);
+                showStatusMessage('Changes saved successfully', true);
+                await fetchData(); // Refresh the table
+                cancelEditing(); // Exit edit mode after successful save
+            } catch (error) {
+                console.error('Error saving changes:', error);
+                showStatusMessage(error.message, false);
+            }
         }
     </script>
 </head>

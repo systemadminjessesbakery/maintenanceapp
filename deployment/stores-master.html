@@ -540,12 +540,23 @@
         <div id="newRowFormContainer"></div>
         
         <div class="table-container">
-    <table id="storesTable">
-        <thead>
-            <tr></tr>
-        </thead>
-        <tbody></tbody>
-    </table>
+            <table id="storesTable">
+                <thead>
+                    <tr>
+                        <th>Store ID <span class="filter-icon" onclick="showFilter('Store_ID', this)">🔍</span></th>
+                        <th>Store Name <span class="filter-icon" onclick="showFilter('Store_Name', this)">🔍</span></th>
+                        <th>Region <span class="filter-icon" onclick="showFilter('Region', this)">🔍</span></th>
+                        <th>State <span class="filter-icon" onclick="showFilter('State', this)">🔍</span></th>
+                        <th>Active <span class="filter-icon" onclick="showFilter('Active', this)">🔍</span></th>
+                        <th>Address <span class="filter-icon" onclick="showFilter('Address', this)">🔍</span></th>
+                        <th>Supplier Code <span class="filter-icon" onclick="showFilter('Supplier_Code', this)">🔍</span></th>
+                        <th>Special Friday</th>
+                        <th>Special Sunday</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
         </div>
     </div>
 
@@ -844,7 +855,7 @@
                                 </div>
                                 <div class="form-group">
                                     <label for="Store_Name">Store Name*</label>
-                                    <input type="text" id="Store_Name" required>
+                                    <input type="text" id="Store_Name" required maxlength="255">
                                 </div>
                                 <div class="form-group">
                                     <label for="Region">Region*</label>
@@ -855,7 +866,7 @@
                                 </div>
                                 <div class="form-group">
                                     <label for="State">State*</label>
-                                    <input type="text" id="State" required>
+                                    <input type="text" id="State" required maxlength="50">
                                 </div>
                                 <div class="form-group">
                                     <label for="Active">Active*</label>
@@ -866,21 +877,21 @@
                                 </div>
                                 <div class="form-group">
                                     <label for="Address">Address</label>
-                                    <input type="text" id="Address">
+                                    <input type="text" id="Address" maxlength="255">
                                 </div>
                                 <div class="form-group">
                                     <label for="Supplier_Code">Supplier Code</label>
-                                    <input type="text" id="Supplier_Code">
+                                    <input type="text" id="Supplier_Code" maxlength="50">
                                 </div>
                                 <div class="form-group">
                                     <label>
-                                        <input type="checkbox" id="SPECIAL_FRIDAY" onchange="handleSpecialDayChange(this, 'FRIDAY')">
+                                        <input type="checkbox" id="SPECIAL_FRIDAY">
                                         Special Friday
                                     </label>
                                 </div>
                                 <div class="form-group">
                                     <label>
-                                        <input type="checkbox" id="SPECIAL_SUNDAY" onchange="handleSpecialDayChange(this, 'SUNDAY')">
+                                        <input type="checkbox" id="SPECIAL_SUNDAY">
                                         Special Sunday
                                     </label>
                                 </div>
@@ -913,21 +924,14 @@
 
         async function saveNewStore() {
             const newStore = {
-                Store_Name: document.getElementById('Store_Name').value,
-                Region: document.getElementById('Region').value,
-                State: document.getElementById('State').value,
+                Store_Name: document.getElementById('Store_Name').value.trim(),
+                Region: document.getElementById('Region').value.trim(),
+                State: document.getElementById('State').value.trim(),
                 Active: document.getElementById('Active').value,
-                Address: document.getElementById('Address').value,
-                Supplier_Code: document.getElementById('Supplier_Code').value,
-                SUNDAY: document.getElementById('SPECIAL_SUNDAY')?.checked ? 'TRUE' : 'FALSE',
-                MONDAY: 'FALSE',
-                TUESDAY: 'FALSE',
-                WEDNESDAY: 'FALSE',
-                THURSDAY: 'FALSE',
-                FRIDAY: document.getElementById('SPECIAL_FRIDAY')?.checked ? 'TRUE' : 'FALSE',
-                SATURDAY: 'FALSE',
-                SPECIAL_FRIDAY: document.getElementById('SPECIAL_FRIDAY')?.checked ? 'TRUE' : 'FALSE',
-                SPECIAL_SUNDAY: document.getElementById('SPECIAL_SUNDAY')?.checked ? 'TRUE' : 'FALSE'
+                Address: document.getElementById('Address').value.trim(),
+                Supplier_Code: document.getElementById('Supplier_Code').value.trim(),
+                SPECIAL_FRIDAY: document.getElementById('SPECIAL_FRIDAY').checked ? 'TRUE' : 'FALSE',
+                SPECIAL_SUNDAY: document.getElementById('SPECIAL_SUNDAY').checked ? 'TRUE' : 'FALSE'
             };
 
             try {
@@ -952,12 +956,6 @@
                 console.error('Error creating store:', error);
                 showStatusMessage(error.message, false);
             }
-        }
-
-        function handleSpecialDayChange(checkbox, dayToCheck) {
-            // This function will be called when special day checkboxes are changed in the new store form
-            const isChecked = checkbox.checked;
-            // The regular day checkbox is handled in saveNewStore
         }
 
         function startEditing(row) {
