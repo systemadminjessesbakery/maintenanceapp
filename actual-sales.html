@@ -827,11 +827,14 @@
             summaryElement.innerHTML = '';
             
             try {
-                // First fetch current week data
-                const currentWeekResponse = await fetch(`/api/actual-sales?start=${startDate}&end=${endDate}`, {
+                // Add cache-busting parameter and proper headers
+                const currentWeekResponse = await fetch(`/api/actual-sales?start=${startDate}&end=${endDate}&_=${Date.now()}`, {
                     method: 'GET',
                     headers: {
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'Cache-Control': 'no-cache',
+                        'Pragma': 'no-cache'
                     }
                 });
 
@@ -853,20 +856,22 @@
                 const historicalStart = new Date(startDate);
                 historicalStart.setDate(historicalStart.getDate() - 21); // 3 weeks back
 
-                const historicalResponse = await fetch(`/api/actual-sales?start=${historicalStart.toISOString().split('T')[0]}&end=${endDate}`, {
+                const historicalResponse = await fetch(`/api/actual-sales?start=${historicalStart.toISOString().split('T')[0]}&end=${endDate}&_=${Date.now()}`, {
                     method: 'GET',
                     headers: {
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'Cache-Control': 'no-cache',
+                        'Pragma': 'no-cache'
                     }
                 });
 
                 if (historicalResponse.ok) {
                     const historicalData = await historicalResponse.json();
-                    // Store historical data for rankings
-                    window.historicalData = historicalData.data || historicalData;
+                    window.historicalData = historicalData.data;
                 } else {
                     console.warn('Failed to fetch historical data for rankings');
-                    window.historicalData = currentWeekData.data; // Fallback to current week data
+                    window.historicalData = currentWeekData.data;
                 }
 
                 // Render current week data in table and summary
@@ -910,65 +915,80 @@
         }
 
         function renderSalesData(data) {
-            if (!data || data.length === 0) {
+            if (!data || !Array.isArray(data) || data.length === 0) {
                 showNoData();
                 return;
             }
 
-            // Get unique dates and sort them
-            const dates = [...new Set(data.map(sale => sale.Transaction_Date.split('T')[0]))].sort();
-            
-            // Create a map of store-product combinations
-            const salesMap = new Map();
-            data.forEach(sale => {
-                const key = `${sale.Store_Name}|${sale.Location}|${sale.Description}|${sale.Source}`;
-                if (!salesMap.has(key)) {
-                    salesMap.set(key, {
-                        Store_Name: sale.Store_Name,
-                        Location: sale.Location,
-                        Description: sale.Description,
-                        Source: sale.Source,
-                        dates: {}
-                    });
+            try {
+                // Get unique dates and sort them
+                const dates = [...new Set(data.map(sale => {
+                    const date = sale.Transaction_Date;
+                    return typeof date === 'string' ? date.split('T')[0] : '';
+                }))].filter(date => date).sort();
+                
+                if (dates.length === 0) {
+                    showError('No valid dates found in the data');
+                    return;
                 }
-                const dateKey = sale.Transaction_Date.split('T')[0];
-                salesMap.get(key).dates[dateKey] = (salesMap.get(key).dates[dateKey] || 0) + sale.Quantity;
-            });
 
-            // Update table header with date columns and day names
-            const tableHeader = document.getElementById('tableHeader');
-            tableHeader.innerHTML = `
-                <th>Store<i class="fas fa-filter filter-icon" onclick="showFilter('store', this)"></i></th>
-                <th>Location<i class="fas fa-filter filter-icon" onclick="showFilter('location', this)"></i></th>
-                <th>Product<i class="fas fa-filter filter-icon" onclick="showFilter('product', this)"></i></th>
-                <th>Source<i class="fas fa-filter filter-icon" onclick="showFilter('source', this)"></i></th>
-                ${dates.map(date => {
-                    const dayName = new Date(date).toLocaleDateString('en-US', { weekday: 'short' });
-                    return `<th class="date-header">
-                        ${new Date(date).toLocaleDateString()}
-                        <span class="day-name">${dayName}</span>
-                    </th>`;
-                }).join('')}
-                <th class="total-header">Total</th>
-            `;
+                // Create a map of store-product combinations
+                const salesMap = new Map();
+                data.forEach(sale => {
+                    if (!sale.Store_Name || !sale.Description) return;
+                    
+                    const key = `${sale.Store_Name}|${sale.Location || 'N/A'}|${sale.Description}|${sale.Source || 'N/A'}`;
+                    if (!salesMap.has(key)) {
+                        salesMap.set(key, {
+                            Store_Name: sale.Store_Name,
+                            Location: sale.Location || 'N/A',
+                            Description: sale.Description,
+                            Source: sale.Source || 'N/A',
+                            dates: {}
+                        });
+                    }
+                    const dateKey = sale.Transaction_Date.split('T')[0];
+                    salesMap.get(key).dates[dateKey] = (salesMap.get(key).dates[dateKey] || 0) + (sale.Quantity || 0);
+                });
 
-            // Render table body with quantities by date and total
-            const tableBody = document.getElementById('salesTable');
-            tableBody.innerHTML = Array.from(salesMap.values())
-                .sort((a, b) => a.Store_Name.localeCompare(b.Store_Name))
-                .map(item => {
-                    const rowTotal = dates.reduce((sum, date) => sum + (item.dates[date] || 0), 0);
-                    return `
-                        <tr>
-                            <td>${item.Store_Name}</td>
-                            <td>${item.Location}</td>
-                            <td>${item.Description}</td>
-                            <td>${item.Source}</td>
-                            ${dates.map(date => `<td>${(item.dates[date] || 0).toLocaleString()}</td>`).join('')}
-                            <td class="total-column">${rowTotal.toLocaleString()}</td>
-                        </tr>
-                    `;
-                }).join('');
+                // Update table header with date columns and day names
+                const tableHeader = document.getElementById('tableHeader');
+                tableHeader.innerHTML = `
+                    <th>Store<i class="fas fa-filter filter-icon" onclick="showFilter('store', this)"></i></th>
+                    <th>Location<i class="fas fa-filter filter-icon" onclick="showFilter('location', this)"></i></th>
+                    <th>Product<i class="fas fa-filter filter-icon" onclick="showFilter('product', this)"></i></th>
+                    <th>Source<i class="fas fa-filter filter-icon" onclick="showFilter('source', this)"></i></th>
+                    ${dates.map(date => {
+                        const dayName = new Date(date).toLocaleDateString('en-US', { weekday: 'short' });
+                        return `<th class="date-header">
+                            ${new Date(date).toLocaleDateString()}
+                            <span class="day-name">${dayName}</span>
+                        </th>`;
+                    }).join('')}
+                    <th class="total-header">Total</th>
+                `;
+
+                // Render table body with quantities by date and total
+                const tableBody = document.getElementById('salesTable');
+                tableBody.innerHTML = Array.from(salesMap.values())
+                    .sort((a, b) => a.Store_Name.localeCompare(b.Store_Name))
+                    .map(item => {
+                        const rowTotal = dates.reduce((sum, date) => sum + (item.dates[date] || 0), 0);
+                        return `
+                            <tr>
+                                <td>${item.Store_Name}</td>
+                                <td>${item.Location}</td>
+                                <td>${item.Description}</td>
+                                <td>${item.Source}</td>
+                                ${dates.map(date => `<td>${(item.dates[date] || 0).toLocaleString()}</td>`).join('')}
+                                <td class="total-column">${rowTotal.toLocaleString()}</td>
+                            </tr>
+                        `;
+                    }).join('');
+            } catch (error) {
+                console.error('Error rendering sales data:', error);
+                showError('Error rendering data: ' + error.message);
+            }
         }
 
         function updateSummary(currentWeekData, historicalData) {
