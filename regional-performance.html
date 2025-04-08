@@ -715,7 +715,10 @@
         async function fetchRegionalData() {
             try {
                 // Show loading indicator
-                document.getElementById('loadingIndicator').style.display = 'block';
+                const loadingIndicator = document.getElementById('loadingIndicator');
+                if (loadingIndicator) {
+                    loadingIndicator.style.display = 'block';
+                }
                 
                 // Get date range
                 const startDate = document.getElementById('startDate').value;
@@ -726,24 +729,25 @@
                     throw new Error('Start date cannot be after end date');
                 }
                 
-                // Build URL with query parameters
+                // Build URL with query parameters and cache buster
                 let url = '/api/regional-performance';
                 const params = new URLSearchParams();
                 if (startDate) params.append('start', startDate);
                 if (endDate) params.append('end', endDate);
-                if (params.toString()) url += '?' + params.toString();
                 
-                // Add timestamp to prevent caching
-                url += (params.toString() ? '&' : '?') + '_t=' + new Date().getTime();
+                // Add cache buster
+                params.append('_t', new Date().getTime());
+                url += '?' + params.toString();
                 
-                // Fetch data with no-cache option
+                // Fetch data with strict no-cache options
                 const response = await fetch(url, {
                     method: 'GET',
                     headers: {
                         'Cache-Control': 'no-cache, no-store, must-revalidate',
                         'Pragma': 'no-cache',
                         'Expires': '0'
-                    }
+                    },
+                    cache: 'no-store'
                 });
                 
                 if (!response.ok) {
@@ -753,23 +757,50 @@
                 
                 const result = await response.json();
                 
-                // Update the data with the new format
+                // Verify data freshness
+                const currentTime = new Date().getTime();
+                const dataTime = new Date(result.metadata.timestamp).getTime();
+                const timeDiff = currentTime - dataTime;
+                
+                if (timeDiff > 60000) { // Data is older than 1 minute
+                    console.warn('Data might be stale. Age:', timeDiff/1000, 'seconds');
+                }
+                
+                // Update the data
                 regionalData = result.data;
                 
                 // Update the last refresh time
                 const lastRefreshTime = document.getElementById('lastRefreshTime');
                 if (lastRefreshTime) {
-                    lastRefreshTime.textContent = new Date(result.timestamp).toLocaleString();
+                    lastRefreshTime.textContent = new Date(result.metadata.timestamp).toLocaleString();
+                }
+                
+                // Update date range display
+                const dateRangeDisplay = document.getElementById('dateRangeDisplay');
+                if (dateRangeDisplay) {
+                    const start = new Date(result.metadata.dateRange.start).toLocaleDateString();
+                    const end = new Date(result.metadata.dateRange.end).toLocaleDateString();
+                    dateRangeDisplay.textContent = `${start} to ${end}`;
                 }
                 
                 // Apply filters and update the display
-                applyFilters();
+                await applyFilters();
+                
+                // Update charts
+                if (typeof updateCharts === 'function') {
+                    updateCharts(regionalData);
+                }
                 
                 // Hide loading indicator
-                document.getElementById('loadingIndicator').style.display = 'none';
+                if (loadingIndicator) {
+                    loadingIndicator.style.display = 'none';
+                }
+                
             } catch (error) {
                 console.error('Error fetching regional performance data:', error);
-                document.getElementById('loadingIndicator').style.display = 'none';
+                if (loadingIndicator) {
+                    loadingIndicator.style.display = 'none';
+                }
                 alert('Error: ' + error.message);
             }
         }
@@ -847,6 +878,55 @@
             // If start date is after end date, update it
             if (startDate.value && new Date(startDate.value) > endDate) {
                 startDate.value = this.value;
+            }
+        });
+
+        // Add auto-refresh functionality
+        let autoRefreshInterval;
+
+        function startAutoRefresh(intervalMinutes = 5) {
+            // Clear any existing interval
+            if (autoRefreshInterval) {
+                clearInterval(autoRefreshInterval);
+            }
+            
+            // Convert minutes to milliseconds
+            const interval = intervalMinutes * 60 * 1000;
+            
+            autoRefreshInterval = setInterval(async () => {
+                console.log('Auto-refreshing data...');
+                await fetchRegionalData();
+            }, interval);
+            
+            console.log(`Auto-refresh enabled. Data will refresh every ${intervalMinutes} minutes`);
+        }
+
+        function stopAutoRefresh() {
+            if (autoRefreshInterval) {
+                clearInterval(autoRefreshInterval);
+                autoRefreshInterval = null;
+                console.log('Auto-refresh disabled');
+            }
+        }
+
+        // Add refresh button click handler
+        document.getElementById('refreshButton').addEventListener('click', async () => {
+            await fetchRegionalData();
+        });
+
+        // Start auto-refresh when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            startAutoRefresh(5); // Refresh every 5 minutes
+            fetchRegionalData(); // Initial data load
+        });
+
+        // Stop auto-refresh when page is hidden
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                stopAutoRefresh();
+            } else {
+                startAutoRefresh(5);
+                fetchRegionalData(); // Refresh data when page becomes visible again
             }
         });
     </script>

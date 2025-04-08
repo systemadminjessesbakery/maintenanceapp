@@ -172,11 +172,15 @@ app.get('/debug', (req, res) => {
 app.get('/api/regional-performance', async (req, res) => {
   logger.debug('Received request for /api/regional-performance');
   
-  // Add cache control headers to prevent caching
-  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-  res.set('Pragma', 'no-cache');
-  res.set('Expires', '0');
-  
+  // Set strict no-cache headers
+  res.set({
+    'Cache-Control': 'no-store, no-cache, must-revalidate, private',
+    'Pragma': 'no-cache',
+    'Expires': '0',
+    'Surrogate-Control': 'no-store',
+    'ETag': new Date().getTime().toString()
+  });
+
   if (!poolConnected) {
     return res.status(503).json({
       error: 'Database not connected',
@@ -185,69 +189,103 @@ app.get('/api/regional-performance', async (req, res) => {
   }
   
   try {
-    // Extract date parameters
-    const startDate = req.query.start || null;
-    const endDate = req.query.end || null;
+    // Extract date parameters with validation
+    let startDate = req.query.start ? new Date(req.query.start) : null;
+    let endDate = req.query.end ? new Date(req.query.end) : null;
+    
+    // Validate date format
+    if (req.query.start && isNaN(startDate)) {
+      return res.status(400).json({ error: 'Invalid start date format' });
+    }
+    if (req.query.end && isNaN(endDate)) {
+      return res.status(400).json({ error: 'Invalid end date format' });
+    }
     
     // Default to last 3 weeks if no date range provided
-    const defaultStartDate = new Date();
-    defaultStartDate.setDate(defaultStartDate.getDate() - 21); // 3 weeks
-    const defaultEndDate = new Date();
+    if (!startDate) {
+      startDate = new Date();
+      startDate.setDate(startDate.getDate() - 21);
+    }
+    if (!endDate) {
+      endDate = new Date();
+    }
+    
+    // Ensure dates are at midnight for consistent comparison
+    startDate.setHours(0, 0, 0, 0);
+    endDate.setHours(23, 59, 59, 999);
     
     // Build the query with date parameters
-    const request = pool.request();
+    const request = pool.request()
+      .input('StartDate', sql.DateTime, startDate)
+      .input('EndDate', sql.DateTime, endDate);
     
-    if (startDate) {
-      request.input('StartDate', sql.Date, new Date(startDate));
-    } else {
-      request.input('StartDate', sql.Date, defaultStartDate);
-    }
-    
-    if (endDate) {
-      request.input('EndDate', sql.Date, new Date(endDate));
-    } else {
-      request.input('EndDate', sql.Date, defaultEndDate);
-    }
-    
-    // Query the view with proper column names
-    const result = await request.query(`
+    // Query with NOLOCK hint and explicit column selection
+    const query = `
+      WITH WeeklyData AS (
+        SELECT 
+          DATEADD(day, -(DATEPART(weekday, Transaction_Date) - 1), Transaction_Date) as Week_Start,
+          DATEADD(day, 7-(DATEPART(weekday, Transaction_Date)), Transaction_Date) as Week_End,
+          Location as Region,
+          DATEPART(weekday, Transaction_Date) as DayOfWeek,
+          SUM(Quantity) as Daily_Quantity
+        FROM Combined_Sales_Data_Final WITH (NOLOCK)
+        WHERE Transaction_Date >= @StartDate
+        AND Transaction_Date <= @EndDate
+        GROUP BY 
+          Location,
+          Transaction_Date,
+          DATEPART(weekday, Transaction_Date)
+      )
       SELECT 
-        Week_Label,
+        CONVERT(varchar, Week_Start, 23) + ' - ' + CONVERT(varchar, Week_End, 23) as Week_Label,
         Region,
-        Sunday,
-        Monday,
-        Tuesday,
-        Wednesday,
-        Thursday,
-        Friday,
-        Saturday,
-        Total_Week_Quantity
-      FROM [dbo].[vw_Cumulative_Weekly_Region_Sales] WITH (NOLOCK)
-      WHERE Week_Label >= CONVERT(varchar, @StartDate, 23)
-      AND Week_Label <= CONVERT(varchar, @EndDate, 23)
-      ORDER BY Week_Label DESC, Region;
-    `);
+        SUM(CASE WHEN DayOfWeek = 1 THEN Daily_Quantity ELSE 0 END) as Sunday,
+        SUM(CASE WHEN DayOfWeek = 2 THEN Daily_Quantity ELSE 0 END) as Monday,
+        SUM(CASE WHEN DayOfWeek = 3 THEN Daily_Quantity ELSE 0 END) as Tuesday,
+        SUM(CASE WHEN DayOfWeek = 4 THEN Daily_Quantity ELSE 0 END) as Wednesday,
+        SUM(CASE WHEN DayOfWeek = 5 THEN Daily_Quantity ELSE 0 END) as Thursday,
+        SUM(CASE WHEN DayOfWeek = 6 THEN Daily_Quantity ELSE 0 END) as Friday,
+        SUM(CASE WHEN DayOfWeek = 7 THEN Daily_Quantity ELSE 0 END) as Saturday,
+        SUM(Daily_Quantity) as Total_Week_Quantity
+      FROM WeeklyData
+      GROUP BY Week_Start, Week_End, Region
+      ORDER BY Week_End DESC, Region;
+    `;
     
-    logger.debug(`Regional performance query returned ${result.recordset.length} rows`);
+    logger.debug('Executing regional performance query with date range:', { startDate, endDate });
+    const result = await request.query(query);
     
     if (result.recordset.length === 0) {
+      logger.info('No data found for date range:', { startDate, endDate });
       return res.status(404).json({
-        message: 'No regional performance data found for the selected date range'
+        message: 'No regional performance data found for the selected date range',
+        dateRange: { startDate, endDate }
       });
     }
     
-    // Add timestamp to response
+    // Add metadata to help client verify freshness
     const response = {
       data: result.recordset,
-      timestamp: new Date().toISOString()
+      metadata: {
+        timestamp: new Date().toISOString(),
+        dateRange: {
+          start: startDate.toISOString(),
+          end: endDate.toISOString()
+        },
+        rowCount: result.recordset.length,
+        queryExecutionTime: new Date().getTime()
+      }
     };
     
+    logger.debug(`Regional performance query returned ${result.recordset.length} rows`);
     res.json(response);
+    
   } catch (err) {
     logger.error('Error fetching regional performance data:', err);
     res.status(500).json({ 
       error: 'Error fetching regional performance data',
-      details: err.message
+      details: err.message,
+      timestamp: new Date().toISOString()
     });
   }
 });
