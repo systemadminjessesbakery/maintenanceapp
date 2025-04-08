@@ -841,13 +841,13 @@
 
                 const currentWeekData = await currentWeekResponse.json();
                 
-                if (!currentWeekData || currentWeekData.length === 0) {
+                if (!currentWeekData || !currentWeekData.data || currentWeekData.data.length === 0) {
                     showNoData();
                     return;
                 }
 
                 // Store current week data for the main table and summary
-                allData = currentWeekData;
+                allData = currentWeekData.data;
 
                 // Now fetch historical data for rankings
                 const historicalStart = new Date(startDate);
@@ -863,15 +863,15 @@
                 if (historicalResponse.ok) {
                     const historicalData = await historicalResponse.json();
                     // Store historical data for rankings
-                    window.historicalData = historicalData;
+                    window.historicalData = historicalData.data || historicalData;
                 } else {
                     console.warn('Failed to fetch historical data for rankings');
-                    window.historicalData = currentWeekData; // Fallback to current week data
+                    window.historicalData = currentWeekData.data; // Fallback to current week data
                 }
 
                 // Render current week data in table and summary
-                renderSalesData(currentWeekData);
-                updateSummary(currentWeekData, window.historicalData);
+                renderSalesData(currentWeekData.data);
+                updateSummary(currentWeekData.data, window.historicalData);
             } catch (error) {
                 console.error('Error fetching sales data:', error);
                 showError('Error loading sales data: ' + error.message);
