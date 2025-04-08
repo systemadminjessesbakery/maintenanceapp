@@ -489,7 +489,7 @@
         document.title = document.title + " [" + new Date().toLocaleTimeString() + "]";
         
         let allData = [];
-        let filteredData = [];
+        let chart = null;
         const filters = {
             week: new Set(),
             region: new Set(),
@@ -685,17 +685,17 @@
         }
 
         function updateChart(selectedRegion = 'all') {
+            const ctx = document.getElementById('performanceChart').getContext('2d');
+            
             if (chart) {
                 chart.destroy();
             }
 
-            const ctx = document.getElementById('performanceChart').getContext('2d');
             const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
             const weekLabels = [...new Set(allData.map(row => row.Week_Label))].sort().reverse();
             const datasets = [];
 
             if (selectedRegion === 'all') {
-                // Calculate combined totals for each day across all regions
                 days.forEach((day, index) => {
                     const dayData = weekLabels.map(weekLabel => {
                         const weekData = allData.filter(row => row.Week_Label === weekLabel);
@@ -712,7 +712,6 @@
                     });
                 });
             } else {
-                // Show data for selected region
                 days.forEach((day, index) => {
                     const dayData = weekLabels.map(weekLabel => {
                         const weekData = allData.find(row => 
@@ -765,16 +764,7 @@
                         },
                         legend: {
                             position: 'bottom'
-                        },
-                        tooltip: {
-                            mode: 'index',
-                            intersect: false
                         }
-                    },
-                    interaction: {
-                        mode: 'nearest',
-                        axis: 'x',
-                        intersect: false
                     }
                 }
             });

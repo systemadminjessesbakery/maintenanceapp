@@ -74,9 +74,9 @@
             const today = new Date();
             const currentDay = today.getDay(); // 0 = Sunday, 6 = Saturday
             
-            // Calculate the most recent Sunday
+            // Calculate the most recent Sunday (ensure it's in the past)
             const lastSunday = new Date(today);
-            lastSunday.setDate(today.getDate() - currentDay);
+            lastSunday.setDate(today.getDate() - currentDay - 7); // Go back one more week to ensure we're in the past
             
             // Calculate the corresponding Saturday
             const saturday = new Date(lastSunday);
