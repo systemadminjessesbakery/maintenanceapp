@@ -335,81 +335,81 @@
                 <br>
                 Date Range: <span id="dateRangeDisplay">-</span>
             </div>
-        </div>
-        
-        <div class="controls">
-            <div class="date-range">
+    </div>
+
+    <div class="controls">
+        <div class="date-range">
                 <label for="startDate">From:</label>
                 <input type="date" id="startDate" class="date-input">
                 <label for="endDate">To:</label>
                 <input type="date" id="endDate" class="date-input">
                 <button class="btn btn-green" onclick="fetchRegionalData()">
-                    <i class="fas fa-sync-alt"></i>
+                <i class="fas fa-sync-alt"></i>
                     Update
-                </button>
-            </div>
+            </button>
+        </div>
             <div class="region-selector">
                 <label for="regionSelect">Region for Chart:</label>
                 <select id="regionSelect" class="date-input">
                     <option value="all">All Regions</option>
                 </select>
-            </div>
-            <button class="btn btn-outline" onclick="exportToExcel()">
-                <i class="fas fa-file-excel"></i>
-                Export to Excel
-            </button>
-            <button class="btn btn-outline" onclick="exportToPDF()">
-                <i class="fas fa-file-pdf"></i>
-                Export to PDF
-            </button>
-            <button class="btn clear-filters" onclick="clearAllFilters()">
-                <i class="fas fa-times"></i>
-                Clear All Filters
-            </button>
         </div>
+        <button class="btn btn-outline" onclick="exportToExcel()">
+            <i class="fas fa-file-excel"></i>
+            Export to Excel
+        </button>
+        <button class="btn btn-outline" onclick="exportToPDF()">
+            <i class="fas fa-file-pdf"></i>
+            Export to PDF
+        </button>
+        <button class="btn clear-filters" onclick="clearAllFilters()">
+            <i class="fas fa-times"></i>
+            Clear All Filters
+        </button>
+    </div>
 
-        <div id="summary" class="summary">
-            <!-- Summary cards will be populated here -->
-        </div>
+    <div id="summary" class="summary">
+        <!-- Summary cards will be populated here -->
+    </div>
 
-        <div class="rankings">
-            <div class="ranking-card">
-                <h3>
-                    <i class="fas fa-arrow-up"></i>
-                    Top 5 Performing Regions
-                </h3>
-                <div class="ranking-header">
-                    <span></span>
-                    <span>Region</span>
+    <div class="rankings">
+        <div class="ranking-card">
+            <h3>
+                <i class="fas fa-arrow-up"></i>
+                Top 5 Performing Regions
+            </h3>
+            <div class="ranking-header">
+                <span></span>
+                <span>Region</span>
                     <span>Current Week</span>
-                    <span>Week -1</span>
-                    <span>Week -2</span>
-                    <span>Week -3</span>
-                    <span>4wk Avg</span>
-                </div>
-                <ul class="ranking-list" id="topRegions">
-                    <!-- Top regions will be populated here -->
-                </ul>
+                <span>Week -1</span>
+                <span>Week -2</span>
+                <span>Week -3</span>
+                <span>4wk Avg</span>
             </div>
-            <div class="ranking-card">
-                <h3>
-                    <i class="fas fa-arrow-down"></i>
-                    Bottom 5 Performing Regions
-                </h3>
-                <div class="ranking-header">
-                    <span></span>
-                    <span>Region</span>
-                    <span>Current Week</span>
-                    <span>Week -1</span>
-                    <span>Week -2</span>
-                    <span>Week -3</span>
-                    <span>4wk Avg</span>
-                </div>
-                <ul class="ranking-list" id="bottomRegions">
-                    <!-- Bottom regions will be populated here -->
+            <ul class="ranking-list" id="topRegions">
+                <!-- Top regions will be populated here -->
                 </ul>
-            </div>
         </div>
+        <div class="ranking-card">
+            <h3>
+                <i class="fas fa-arrow-down"></i>
+                Bottom 5 Performing Regions
+            </h3>
+            <div class="ranking-header">
+                <span></span>
+                <span>Region</span>
+                    <span>Current Week</span>
+                <span>Week -1</span>
+                <span>Week -2</span>
+                <span>Week -3</span>
+                <span>4wk Avg</span>
+            </div>
+            <ul class="ranking-list" id="bottomRegions">
+                <!-- Bottom regions will be populated here -->
+            </ul>
+        </div>
+                    </div>
 
         <div class="rankings">
             <div class="ranking-card">
@@ -446,34 +446,34 @@
                 </div>
                 <ul class="ranking-list" id="bottomProducts">
                     <!-- Bottom products will be populated here -->
-                </ul>
-            </div>
+            </ul>
         </div>
+                    </div>
 
-        <div class="table-container">
-            <div id="loading" class="loading">Loading regional performance data...</div>
-            <table id="regionalTable">
-                <thead>
-                    <tr>
-                        <th>Week Label<i class="fas fa-filter filter-icon" onclick="showFilter('week')"></i></th>
-                        <th>Region<i class="fas fa-filter filter-icon" onclick="showFilter('region')"></i></th>
+    <div class="table-container">
+        <div id="loading" class="loading">Loading regional performance data...</div>
+        <table id="regionalTable">
+                                <thead>
+                                    <tr>
+                    <th>Week Label<i class="fas fa-filter filter-icon" onclick="showFilter('week')"></i></th>
+                    <th>Region<i class="fas fa-filter filter-icon" onclick="showFilter('region')"></i></th>
                         <th>Product<i class="fas fa-filter filter-icon" onclick="showFilter('product')"></i></th>
-                        <th>Sunday</th>
-                        <th>Monday</th>
-                        <th>Tuesday</th>
-                        <th>Wednesday</th>
-                        <th>Thursday</th>
-                        <th>Friday</th>
-                        <th>Saturday</th>
-                        <th>Total Week Quantity</th>
-                    </tr>
-                </thead>
-                <tbody></tbody>
-            </table>
-        </div>
+                                        <th>Sunday</th>
+                                        <th>Monday</th>
+                                        <th>Tuesday</th>
+                                        <th>Wednesday</th>
+                                        <th>Thursday</th>
+                                        <th>Friday</th>
+                                        <th>Saturday</th>
+                                        <th>Total Week Quantity</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                </div>
 
-        <div class="chart-container">
-            <canvas id="performanceChart"></canvas>
+                        <div class="chart-container">
+                            <canvas id="performanceChart"></canvas>
         </div>
     </div>
 
@@ -621,7 +621,7 @@
 
         function updateRankings(data) {
             const weekLabels = [...new Set(data.map(row => row.Week_Label))].sort().reverse();
-            
+
             // Process region rankings
             const regionData = {};
             data.forEach(row => {
@@ -748,14 +748,14 @@
             });
 
             chart = new Chart(ctx, {
-                type: 'line',
-                data: {
+                    type: 'line',
+                    data: {
                     labels: weekLabels,
-                    datasets: datasets
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
+                        datasets: datasets
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
                     plugins: {
                         title: {
                             display: true,
@@ -765,11 +765,11 @@
                             position: 'bottom'
                         }
                     },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            title: {
-                                display: true,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                title: {
+                                    display: true,
                                 text: 'Sales Quantity'
                             }
                         },
@@ -944,9 +944,9 @@
             const now = Date.now();
             if (now - lastRefreshAttempt < MIN_REFRESH_INTERVAL) {
                 console.log('Skipping refresh - too soon since last attempt');
-                return;
-            }
-            
+                    return;
+                }
+
             lastRefreshAttempt = now;
             console.log('Refreshing data...');
             try {

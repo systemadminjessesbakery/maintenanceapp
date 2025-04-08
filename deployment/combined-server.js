@@ -464,7 +464,7 @@ app.post('/api/stores', async (req, res) => {
 app.put('/api/stores/:storeId', async (req, res) => {
   const storeId = req.params.storeId;
   const updates = req.body;
-  logger.debug(`Received request to update store ID: ${storeId}`, updates);
+  logger.debug(`Update payload for store ${storeId}:`, updates);
   
   if (!poolConnected) {
     return res.status(503).json({
@@ -501,23 +501,79 @@ app.put('/api/stores/:storeId', async (req, res) => {
 
     // Build dynamic update query based on provided fields
     const updateFields = [];
+    
+    // Log all the keys and values we're trying to update
+    logger.debug(`Fields to update for store ${storeId}:`, Object.keys(updates));
+    
+    // Define explicit whitelist of allowed columns
+    const allowedFields = new Set([
+      'Store_Name', 'Region', 'State', 'Active', 'Address', 'Supplier_Code', 'Run_ID', 
+      'Shelf_Limit', 'Latitude', 'Longitude', 'INVOICED', 'XERO_CODE', 'XERO_CUSTOMERID',
+      'SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY',
+      'SPECIAL_FRIDAY', 'SPECIAL_SUNDAY', 'SUN_OVERRIDE', 'MON_OVERRIDE', 'TUE_OVERRIDE',
+      'WED_OVERRIDE', 'THU_OVERRIDE', 'FRI_OVERRIDE', 'SAT_OVERRIDE'
+    ]);
+    
     for (const [key, value] of Object.entries(updates)) {
-      if (key === 'Store_ID') continue; // Skip Store_ID as it's the identifier
+      try {
+        if (key === 'Store_ID') {
+          logger.debug(`Skipping Store_ID as it's an identifier`);
+          continue; // Skip Store_ID as it's the identifier
+        }
 
-      // Handle all fields as nvarchar with appropriate lengths
-      if (['Store_Name', 'Region', 'Address', 'Run_ID', 'Shelf_Limit', 'Latitude', 'Longitude'].includes(key)) {
-        request.input(key, sql.NVarChar(255), value === null ? null : value.toString().trim());
-        updateFields.push(`${key} = @${key}`);
-      } else if (['State', 'Active', 'Supplier_Code', 'INVOICED', 'XERO_CODE', 'XERO_CUSTOMERID'].includes(key)) {
-        request.input(key, sql.NVarChar(50), value === null ? null : value.toString().trim());
-        updateFields.push(`${key} = @${key}`);
-      } else if (['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY',
-                 'SPECIAL_FRIDAY', 'SPECIAL_SUNDAY', 'SUN_OVERRIDE', 'MON_OVERRIDE', 'TUE_OVERRIDE',
-                 'WED_OVERRIDE', 'THU_OVERRIDE', 'FRI_OVERRIDE', 'SAT_OVERRIDE'].includes(key)) {
-        // Handle boolean fields as nvarchar(50)
-        const boolValue = (value || '').toString().toUpperCase() === 'TRUE' ? 'TRUE' : 'FALSE';
-        request.input(key, sql.NVarChar(50), boolValue);
-        updateFields.push(`${key} = @${key}`);
+        // Skip any columns that aren't in our allowed list
+        if (!allowedFields.has(key)) {
+          logger.warn(`Skipping invalid column: ${key}`);
+          continue;
+        }
+        
+        logger.debug(`Processing key: ${key}, value: ${value}, type: ${typeof value}`);
+
+        // Handle all fields as nvarchar with appropriate lengths
+        if (['Store_Name', 'Region', 'Address', 'Run_ID', 'Shelf_Limit', 'Latitude', 'Longitude'].includes(key)) {
+          let safeValue = value;
+          if (value === undefined || value === null) {
+            safeValue = null;
+          } else if (typeof value !== 'string') {
+            safeValue = String(value).trim();
+          } else {
+            safeValue = value.trim();
+          }
+          logger.debug(`Adding ${key} as NVarChar(255): ${safeValue}`);
+          request.input(key, sql.NVarChar(255), safeValue);
+          updateFields.push(`${key} = @${key}`);
+        } else if (['State', 'Active', 'Supplier_Code', 'INVOICED', 'XERO_CODE', 'XERO_CUSTOMERID'].includes(key)) {
+          let safeValue = value;
+          if (value === undefined || value === null) {
+            safeValue = null;
+          } else if (typeof value !== 'string') {
+            safeValue = String(value).trim();
+          } else {
+            safeValue = value.trim();
+          }
+          logger.debug(`Adding ${key} as NVarChar(50): ${safeValue}`);
+          request.input(key, sql.NVarChar(50), safeValue);
+          updateFields.push(`${key} = @${key}`);
+        } else if (['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY',
+                   'SPECIAL_FRIDAY', 'SPECIAL_SUNDAY', 'SUN_OVERRIDE', 'MON_OVERRIDE', 'TUE_OVERRIDE',
+                   'WED_OVERRIDE', 'THU_OVERRIDE', 'FRI_OVERRIDE', 'SAT_OVERRIDE'].includes(key)) {
+          // Handle boolean fields as nvarchar(50) - match the database type
+          let boolValue;
+          if (value === undefined || value === null) {
+            boolValue = null;
+          } else if (typeof value === 'boolean') {
+            boolValue = value ? 'TRUE' : 'FALSE';
+          } else {
+            const strValue = String(value).toUpperCase();
+            boolValue = (strValue === 'TRUE' || strValue === '1' || strValue === 'YES') ? 'TRUE' : 'FALSE';
+          }
+          logger.debug(`Adding ${key} as NVarChar(50): ${boolValue}`);
+          request.input(key, sql.NVarChar(50), boolValue);
+          updateFields.push(`${key} = @${key}`);
+        }
+      } catch (fieldErr) {
+        logger.error(`Error processing field ${key}:`, fieldErr);
+        // Continue with other fields instead of failing the whole request
       }
     }
 
@@ -534,13 +590,24 @@ app.put('/api/stores/:storeId', async (req, res) => {
       SELECT * FROM Stores_Master WHERE Store_ID = @Store_ID;
     `;
 
-    const result = await request.query(query);
-    logger.info(`Store ${storeId} updated successfully`);
+    logger.debug(`Update query for store ${storeId}: ${query}`);
     
-    if (result.recordset.length > 0) {
-      res.json(result.recordset[0]);
-    } else {
-      res.json({ message: 'Store updated successfully' });
+    try {
+      const result = await request.query(query);
+      logger.info(`Store ${storeId} updated successfully`);
+      
+      if (result.recordset && result.recordset.length > 0) {
+        res.json(result.recordset[0]);
+      } else {
+        res.json({ message: 'Store updated successfully' });
+      }
+    } catch (sqlErr) {
+      logger.error(`SQL execution failed for store ${storeId}:`, sqlErr);
+      return res.status(500).json({ 
+        error: 'SQL execution failed', 
+        details: sqlErr.message,
+        query: updateFields.join(', ')
+      });
     }
   } catch (err) {
     logger.error(`Error updating store ${storeId}:`, err);
