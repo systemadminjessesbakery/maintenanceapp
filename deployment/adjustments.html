@@ -660,7 +660,7 @@
                     .reduce((sum, value) => sum + value, 0);
 
                 try {
-                    const response = await fetch('/api/adjustments/add', {
+                    const response = await fetch('/api/adjustments', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json'
@@ -871,6 +871,22 @@
             activeFilters = {};
             updateMetrics();
             populateTable();
+        }
+
+        async function updateAdjustment(adjustment) {
+            const response = await fetch(`/api/adjustments/${adjustment.Adjustment_ID}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(adjustment)
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to update adjustment');
+            }
+
+            return await response.json();
         }
 
         function refreshData() {
