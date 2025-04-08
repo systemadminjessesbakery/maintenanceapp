@@ -505,6 +505,15 @@
             document.getElementById('startDate').value = thirtyDaysAgo.toISOString().split('T')[0];
             document.getElementById('endDate').value = today.toISOString().split('T')[0];
             
+            // Add event listener for region selector
+            const regionSelect = document.getElementById('regionSelect');
+            regionSelect.addEventListener('change', function() {
+                updateChart(allData);
+            });
+            
+            // Start auto-refresh
+            startAutoRefresh(5); // Refresh every 5 minutes
+            
             // Initial data fetch
             fetchRegionalData();
         });
@@ -661,6 +670,25 @@
         }
 
         function renderData(data) {
+            // Update region selector options
+            const regionSelect = document.getElementById('regionSelect');
+            const regions = [...new Set(data.map(item => item.Region))].sort();
+            
+            // Clear existing options except "All Regions"
+            regionSelect.innerHTML = '<option value="all">All Regions</option>';
+            
+            // Add new region options
+            regions.forEach(region => {
+                const option = document.createElement('option');
+                option.value = region;
+                option.textContent = region;
+                regionSelect.appendChild(option);
+            });
+
+            // Update the chart with the new data
+            updateChart(data);
+            
+            // Update the table and other elements...
             const tableBody = document.querySelector('#regionalTable tbody');
             
             tableBody.innerHTML = data.map(row => `
@@ -679,57 +707,45 @@
                 </tr>
             `).join('');
 
-            updateChart(data);
             updateSummary(data);
             updateRankings(data);
         }
 
-        function updateChart(selectedRegion = 'all') {
+        function updateChart(data) {
             const ctx = document.getElementById('performanceChart').getContext('2d');
+            const selectedRegion = document.getElementById('regionSelect').value;
             
             if (chart) {
                 chart.destroy();
             }
 
-            const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-            const weekLabels = [...new Set(allData.map(row => row.Week_Label))].sort().reverse();
+            const days = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
+            let filteredData = data;
+            
+            // Filter by selected region if not "all"
+            if (selectedRegion !== 'all') {
+                filteredData = data.filter(row => row.Region === selectedRegion);
+            }
+
+            // Group data by week
+            const weekLabels = [...new Set(filteredData.map(row => row.Week_Label))].sort().reverse();
             const datasets = [];
 
-            if (selectedRegion === 'all') {
-                days.forEach((day, index) => {
-                    const dayData = weekLabels.map(weekLabel => {
-                        const weekData = allData.filter(row => row.Week_Label === weekLabel);
-                        return weekData.reduce((sum, row) => sum + (row[day] || 0), 0);
-                    });
-
-                    datasets.push({
-                        label: day,
-                        data: dayData,
-                        borderColor: `hsl(${index * 360 / days.length}, 70%, 50%)`,
-                        backgroundColor: `hsla(${index * 360 / days.length}, 70%, 50%, 0.1)`,
-                        fill: false,
-                        tension: 0.1
-                    });
+            days.forEach((day, index) => {
+                const dayData = weekLabels.map(weekLabel => {
+                    const weekData = filteredData.filter(row => row.Week_Label === weekLabel);
+                    return weekData.reduce((sum, row) => sum + (Number(row[day]) || 0), 0);
                 });
-            } else {
-                days.forEach((day, index) => {
-                    const dayData = weekLabels.map(weekLabel => {
-                        const weekData = allData.find(row => 
-                            row.Week_Label === weekLabel && row.Region === selectedRegion
-                        );
-                        return weekData ? weekData[day] : 0;
-                    });
 
-                    datasets.push({
-                        label: day,
-                        data: dayData,
-                        borderColor: `hsl(${index * 360 / days.length}, 70%, 50%)`,
-                        backgroundColor: `hsla(${index * 360 / days.length}, 70%, 50%, 0.1)`,
-                        fill: false,
-                        tension: 0.1
-                    });
+                datasets.push({
+                    label: day.charAt(0) + day.slice(1).toLowerCase(),
+                    data: dayData,
+                    borderColor: `hsl(${index * 360 / days.length}, 70%, 50%)`,
+                    backgroundColor: `hsla(${index * 360 / days.length}, 70%, 50%, 0.1)`,
+                    fill: false,
+                    tension: 0.1
                 });
-            }
+            });
 
             chart = new Chart(ctx, {
                 type: 'line',
@@ -740,12 +756,21 @@
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: `Daily Sales by Week ${selectedRegion !== 'all' ? '- ' + selectedRegion : '(All Regions)'}`
+                        },
+                        legend: {
+                            position: 'bottom'
+                        }
+                    },
                     scales: {
                         y: {
                             beginAtZero: true,
                             title: {
                                 display: true,
-                                text: 'Daily Sales Quantity'
+                                text: 'Sales Quantity'
                             }
                         },
                         x: {
@@ -753,17 +778,6 @@
                                 display: true,
                                 text: 'Week'
                             }
-                        }
-                    },
-                    plugins: {
-                        title: {
-                            display: true,
-                            text: selectedRegion === 'all' 
-                                ? 'Combined Regional Daily Performance' 
-                                : `${selectedRegion} Daily Performance`
-                        },
-                        legend: {
-                            position: 'bottom'
                         }
                     }
                 }
@@ -967,24 +981,6 @@
                 console.log('Auto-refresh disabled');
             }
         }
-
-        // Add event listener for region selector
-        document.getElementById('regionSelect').addEventListener('change', function() {
-            updateChart(allData);
-        });
-
-        // Start auto-refresh when page loads
-        document.addEventListener('DOMContentLoaded', () => {
-            // Set default date range (last 30 days)
-            const today = new Date();
-            const thirtyDaysAgo = new Date();
-            thirtyDaysAgo.setDate(today.getDate() - 30);
-            
-            document.getElementById('startDate').value = thirtyDaysAgo.toISOString().split('T')[0];
-            document.getElementById('endDate').value = today.toISOString().split('T')[0];
-            
-            startAutoRefresh(5); // Refresh every 5 minutes
-        });
 
         // Handle page visibility changes
         document.addEventListener('visibilitychange', () => {

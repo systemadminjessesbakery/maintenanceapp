@@ -247,8 +247,8 @@ app.get('/api/regional-performance', async (req, res) => {
       error: 'Error fetching regional performance data',
       details: err.message,
       timestamp: new Date().toISOString()
-    });
-  }
+        });
+    }
 });
 
 // Actual Sales endpoint
@@ -256,7 +256,6 @@ app.get('/api/actual-sales', async (req, res) => {
   logger.debug('Received request for /api/actual-sales');
   
   if (!poolConnected) {
-    logger.error('Database not connected when attempting to fetch actual sales');
     return res.status(503).json({
       error: 'Database not connected',
       message: 'The database connection is not available'
@@ -264,72 +263,80 @@ app.get('/api/actual-sales', async (req, res) => {
   }
   
   try {
-    // Extract date parameters
-    const startDate = req.query.start || null;
-    const endDate = req.query.end || null;
+    // Get date parameters, default to last 30 days if not provided
+    const endDate = req.query.endDate ? new Date(req.query.endDate) : new Date();
+    const startDate = req.query.startDate ? 
+      new Date(req.query.startDate) : 
+      new Date(endDate.getTime() - (30 * 24 * 60 * 60 * 1000));
     
-    logger.debug(`Fetching actual sales data for date range: ${startDate} to ${endDate}`);
-    
-    // Default to 30 days if no date range provided
-    const defaultStartDate = new Date();
-    defaultStartDate.setDate(defaultStartDate.getDate() - 30);
-    const defaultEndDate = new Date();
-    
-    // Build the query with date parameters
-    const request = pool.request();
-    
-    if (startDate) {
-      request.input('StartDate', sql.Date, new Date(startDate));
-    } else {
-      request.input('StartDate', sql.Date, defaultStartDate);
-    }
-    
-    if (endDate) {
-      request.input('EndDate', sql.Date, new Date(endDate));
-    } else {
-      request.input('EndDate', sql.Date, defaultEndDate);
-    }
-    
-    const result = await request.query(`
-      SELECT 
-        s.Store_ID,
-        s.Store_Name,
-        s.Location,
-        p.Product_ID,
-        p.Description,
-        c.Transaction_Date,
-        c.Quantity,
-        c.Source
-      FROM dbo.Combined_Sales_Data_Final c WITH (NOLOCK)
-      JOIN dbo.Stores_Master s WITH (NOLOCK) ON c.Store_ID = s.Store_ID
-      JOIN dbo.Products_Master p WITH (NOLOCK) ON c.Product_ID = p.Product_ID
-      WHERE c.Transaction_Date >= @StartDate
-      AND c.Transaction_Date <= @EndDate
-      ORDER BY s.Store_Name, p.Description, c.Transaction_Date
-    `);
-    
-    logger.debug(`Actual sales query returned ${result.recordset.length} rows`);
-    
-    if (result.recordset.length === 0) {
-      logger.debug('No sales data found for the selected date range');
-      return res.status(404).json({
-        message: 'No sales data found for the selected date range'
+    // Validate dates
+    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+      return res.status(400).json({
+        error: 'Invalid date format',
+        message: 'Please provide dates in YYYY-MM-DD format'
       });
     }
     
-    res.json(result.recordset);
-  } catch (error) {
-    logger.error('Error fetching actual sales data:', error);
-    logger.error('Error details:', {
-      message: error.message,
-      stack: error.stack,
-      sqlState: error.sqlState,
-      sqlMessage: error.sqlMessage
+    // Format dates for SQL
+    const startDateStr = startDate.toISOString().split('T')[0];
+    const endDateStr = endDate.toISOString().split('T')[0];
+    
+    // Query the database with NOLOCK hint for better performance
+    const result = await pool.request()
+      .input('startDate', sql.Date, startDateStr)
+      .input('endDate', sql.Date, endDateStr)
+      .query(`
+        SELECT 
+          [Transaction_Date]
+          ,[Store_ID]
+          ,[Store_Name]
+          ,[Location]
+          ,[Product_ID]
+          ,[Description]
+          ,[Quantity]
+          ,[Dollars_Sold]
+          ,[Source]
+          ,[Old_Store_ID]
+          ,[Old_Product_ID]
+        FROM [dbo].[Combined_Sales_Data_Final] WITH (NOLOCK)
+        WHERE [Transaction_Date] BETWEEN @startDate AND @endDate
+        ORDER BY [Transaction_Date] DESC, [Store_Name], [Description];
+      `);
+    
+    // If no data found, return 404
+    if (result.recordset.length === 0) {
+      return res.status(404).json({
+        message: 'No sales data found for the specified date range',
+        dateRange: {
+          start: startDateStr,
+          end: endDateStr
+        }
+      });
+    }
+    
+    // Add cache control headers
+    res.set({
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0'
     });
-    res.status(500).json({
-      error: 'Internal server error',
-      message: 'An error occurred while fetching actual sales data',
-      details: error.message
+    
+    // Return the data with metadata
+    res.json({
+      data: result.recordset,
+      metadata: {
+        startDate: startDateStr,
+        endDate: endDateStr,
+        rowCount: result.recordset.length,
+        timestamp: new Date().toISOString()
+      }
+    });
+    
+  } catch (err) {
+    logger.error('Error fetching actual sales data:', err);
+    res.status(500).json({ 
+      error: 'Error fetching actual sales data',
+      details: err.message
     });
   }
 });
@@ -512,8 +519,8 @@ app.post('/api/stores', async (req, res) => {
 
 // Update a store
 app.put('/api/stores/:storeId', async (req, res) => {
-  const storeId = req.params.storeId;
-  const updates = req.body;
+    const storeId = req.params.storeId;
+    const updates = req.body;
   logger.debug(`Received request to update store ID: ${storeId}`);
   
   if (!poolConnected) {
@@ -533,7 +540,7 @@ app.put('/api/stores/:storeId', async (req, res) => {
       return res.status(404).json({ error: 'Store not found' });
     }
 
-    // Validate required fields
+        // Validate required fields
     if (updates.Store_Name !== undefined && updates.Store_Name.trim() === '') {
       return res.status(400).json({ error: 'Store Name cannot be empty' });
     }
@@ -547,54 +554,54 @@ app.put('/api/stores/:storeId', async (req, res) => {
     }
     if (updates.Region !== undefined && updates.Region.length > 500) {
       return res.status(400).json({ error: 'Region exceeds maximum length of 500 characters' });
-    }
+        }
 
-    const request = pool.request()
-      .input('Store_ID', sql.VarChar(50), storeId);
+        const request = pool.request()
+            .input('Store_ID', sql.VarChar(50), storeId);
 
-    // Build dynamic update query based on provided fields
-    const updateFields = [];
-    for (const [key, value] of Object.entries(updates)) {
-      if (key === 'Store_ID') continue; // Skip Store_ID as it's the identifier
+        // Build dynamic update query based on provided fields
+        const updateFields = [];
+        for (const [key, value] of Object.entries(updates)) {
+            if (key === 'Store_ID') continue; // Skip Store_ID as it's the identifier
 
-      if (['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SPECIAL_FRIDAY', 'SPECIAL_SUNDAY'].includes(key)) {
-        // Handle boolean fields
-        request.input(key, sql.Bit, value === 'TRUE' ? 1 : 0);
-        updateFields.push(`${key} = @${key}`);
-      } else {
-        // Handle other fields (Store_Name, Region, State, etc.)
+            if (['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SPECIAL_FRIDAY', 'SPECIAL_SUNDAY'].includes(key)) {
+                // Handle boolean fields
+                request.input(key, sql.Bit, value === 'TRUE' ? 1 : 0);
+                updateFields.push(`${key} = @${key}`);
+            } else {
+                // Handle other fields (Store_Name, Region, State, etc.)
         request.input(key, sql.NVarChar(500), value.trim());
-        updateFields.push(`${key} = @${key}`);
-      }
-    }
+                updateFields.push(`${key} = @${key}`);
+            }
+        }
 
-    if (updateFields.length === 0) {
-      return res.status(400).json({ error: 'No valid fields to update' });
-    }
+        if (updateFields.length === 0) {
+            return res.status(400).json({ error: 'No valid fields to update' });
+        }
 
-    const query = `
-      UPDATE Stores_Master 
-      SET ${updateFields.join(', ')},
-          Updated_At = GETDATE()
-      WHERE Store_ID = @Store_ID;
-      
-      SELECT * FROM Stores_Master WHERE Store_ID = @Store_ID;
-    `;
+        const query = `
+            UPDATE Stores_Master 
+            SET ${updateFields.join(', ')},
+                Updated_At = GETDATE()
+            WHERE Store_ID = @Store_ID;
+            
+            SELECT * FROM Stores_Master WHERE Store_ID = @Store_ID;
+        `;
 
-    const result = await request.query(query);
+        const result = await request.query(query);
     logger.info(`Store ${storeId} updated successfully`);
     if (result.recordset.length > 0) {
       res.json(result.recordset[0]);
-    } else {
+        } else {
       res.json({ message: 'Store updated successfully' });
-    }
-  } catch (err) {
+        }
+    } catch (err) {
     logger.error(`Error updating store ${storeId}:`, err);
-    res.status(500).json({ 
-      error: 'Error updating store',
-      details: err.message
-    });
-  }
+        res.status(500).json({ 
+            error: 'Error updating store',
+            details: err.message 
+        });
+    }
 });
 
 // Delete a store
@@ -620,7 +627,7 @@ app.delete('/api/stores/:storeId', async (req, res) => {
     }
     
     // Delete the store
-    await pool.request()
+        await pool.request()
       .input('Store_ID', sql.VarChar(50), storeId)
       .query('DELETE FROM Stores_Master WHERE Store_ID = @Store_ID');
     
@@ -649,7 +656,7 @@ app.get('/api/products', async (req, res) => {
   try {
     // Get all products
     const productsResult = await pool.request()
-      .query(`
+            .query(`
         SELECT * FROM Products_Master
         ORDER BY Product_Description;
       `);
@@ -663,13 +670,13 @@ app.get('/api/products', async (req, res) => {
       `);
     
     const families = familiesResult.recordset.map(r => r.Product_Family);
-    
-    res.json({
+
+        res.json({
       products: productsResult.recordset,
       families: families,
       lastRunDate: new Date().toISOString()
-    });
-  } catch (err) {
+        });
+    } catch (err) {
     logger.error('Error fetching products data:', err);
     res.status(500).json({ 
       error: 'Error fetching products data',
@@ -680,7 +687,7 @@ app.get('/api/products', async (req, res) => {
 
 // Update a product
 app.post('/api/products/update', async (req, res) => {
-  const product = req.body;
+    const product = req.body;
   logger.debug(`Received request to update product: ${product.Product_ID}`);
   
   if (!poolConnected) {
@@ -693,7 +700,7 @@ app.post('/api/products/update', async (req, res) => {
   try {
     // Validate product exists
     const productExists = await pool.request()
-      .input('Product_ID', sql.VarChar(50), product.Product_ID)
+            .input('Product_ID', sql.VarChar(50), product.Product_ID)
       .query('SELECT COUNT(*) as count FROM Products_Master WHERE Product_ID = @Product_ID');
     
     if (productExists.recordset[0].count === 0) {
@@ -726,7 +733,7 @@ app.post('/api/products/update', async (req, res) => {
     
     const result = await request.query(query);
     res.json(result.recordset[0]);
-  } catch (err) {
+    } catch (err) {
     logger.error(`Error updating product ${product.Product_ID}:`, err);
     res.status(500).json({ 
       error: 'Error updating product',
@@ -793,13 +800,13 @@ app.post('/api/products/add', async (req, res) => {
     const result = await request.query(query);
     logger.info(`Product created with ID: ${product.Product_ID}`);
     res.status(201).json(result.recordset[0]);
-  } catch (err) {
+    } catch (err) {
     logger.error('Error creating product:', err);
     res.status(500).json({ 
       error: 'Error creating product',
       details: err.message
     });
-  }
+    }
 });
 
 // Adjustments endpoints
@@ -815,13 +822,28 @@ app.get('/api/adjustments', async (req, res) => {
   
   try {
     const result = await pool.request()
-      .query(`
-        SELECT * FROM Adjustments
-        ORDER BY Adjustment_Date DESC;
+            .query(`
+                SELECT [Adjustment_ID]
+                    ,[Store_ID]
+                    ,[Store_Name]
+                    ,[Product_ID]
+                    ,[Product_Description]
+                    ,[SUNDAY]
+                    ,[MONDAY]
+                    ,[TUESDAY]
+                    ,[WEDNESDAY]
+                    ,[THURSDAY]
+                    ,[FRIDAY]
+                    ,[SATURDAY]
+                    ,[Week_Total]
+                    ,[Created_At]
+                    ,[Updated_At]
+                FROM [dbo].[Store_Product_Adjustments]
+        ORDER BY Created_At DESC;
       `);
     
-    res.json(result.recordset);
-  } catch (err) {
+    res.json({ adjustments: result.recordset });
+    } catch (err) {
     logger.error('Error fetching adjustments data:', err);
     res.status(500).json({ 
       error: 'Error fetching adjustments data',
@@ -831,7 +853,7 @@ app.get('/api/adjustments', async (req, res) => {
 });
 
 app.post('/api/adjustments', async (req, res) => {
-  const adjustment = req.body;
+        const adjustment = req.body;
   logger.debug('Received request to create adjustment');
   
   if (!poolConnected) {
@@ -844,18 +866,28 @@ app.post('/api/adjustments', async (req, res) => {
   try {
     const request = pool.request()
       .input('Store_ID', sql.VarChar(50), adjustment.Store_ID)
+      .input('Store_Name', sql.NVarChar(100), adjustment.Store_Name)
       .input('Product_ID', sql.VarChar(50), adjustment.Product_ID)
-      .input('Adjustment_Date', sql.Date, new Date(adjustment.Adjustment_Date))
-      .input('Quantity', sql.Int, adjustment.Quantity)
-      .input('Reason', sql.NVarChar(500), adjustment.Reason)
-      .input('Created_By', sql.NVarChar(100), adjustment.Created_By || 'System');
+      .input('Product_Description', sql.NVarChar(200), adjustment.Product_Description)
+            .input('SUNDAY', sql.Int, adjustment.SUNDAY || 0)
+            .input('MONDAY', sql.Int, adjustment.MONDAY || 0)
+            .input('TUESDAY', sql.Int, adjustment.TUESDAY || 0)
+            .input('WEDNESDAY', sql.Int, adjustment.WEDNESDAY || 0)
+            .input('THURSDAY', sql.Int, adjustment.THURSDAY || 0)
+            .input('FRIDAY', sql.Int, adjustment.FRIDAY || 0)
+            .input('SATURDAY', sql.Int, adjustment.SATURDAY || 0)
+      .input('Week_Total', sql.Int, adjustment.Week_Total || 0);
     
     const query = `
-      INSERT INTO Adjustments (
-        Store_ID, Product_ID, Adjustment_Date, Quantity, Reason, Created_By, Created_At
+      INSERT INTO [dbo].[Store_Product_Adjustments] (
+        Store_ID, Store_Name, Product_ID, Product_Description,
+                 SUNDAY, MONDAY, TUESDAY, WEDNESDAY, THURSDAY, FRIDAY, SATURDAY,
+        Week_Total, Created_At, Updated_At
       )
       VALUES (
-        @Store_ID, @Product_ID, @Adjustment_Date, @Quantity, @Reason, @Created_By, GETDATE()
+        @Store_ID, @Store_Name, @Product_ID, @Product_Description,
+                 @SUNDAY, @MONDAY, @TUESDAY, @WEDNESDAY, @THURSDAY, @FRIDAY, @SATURDAY,
+        @Week_Total, GETDATE(), GETDATE()
       );
       
       SELECT SCOPE_IDENTITY() as Adjustment_ID;
@@ -866,7 +898,7 @@ app.post('/api/adjustments', async (req, res) => {
     
     logger.info(`Adjustment created with ID: ${adjustmentId}`);
     res.status(201).json({ adjustmentId });
-  } catch (err) {
+    } catch (err) {
     logger.error('Error creating adjustment:', err);
     res.status(500).json({ 
       error: 'Error creating adjustment',
@@ -887,21 +919,21 @@ app.get('/api/region-uplift', async (req, res) => {
   }
   
   try {
-    const result = await pool.request()
-      .query(`
+        const result = await pool.request()
+            .query(`
         SELECT [Region], [Percentage] 
         FROM [dbo].[Region_Percentage_Uplift]
         ORDER BY [Region];
       `);
     
-    res.json(result.recordset);
-  } catch (err) {
+        res.json(result.recordset);
+    } catch (err) {
     logger.error('Error fetching region uplift data:', err);
     res.status(500).json({ 
       error: 'Error fetching region uplift data',
       details: err.message
     });
-  }
+    }
 });
 
 app.post('/api/region-uplift', async (req, res) => {
@@ -914,41 +946,41 @@ app.post('/api/region-uplift', async (req, res) => {
     });
   }
   
-  try {
-    const regions = req.body;
+    try {
+        const regions = req.body;
     if (!Array.isArray(regions)) {
       return res.status(400).json({ error: 'Invalid request body. Expected an array of regions.' });
     }
 
     // Begin transaction
     const transaction = new sql.Transaction(pool);
-    await transaction.begin();
+        await transaction.begin();
 
     try {
       // Clear existing data
       await transaction.request().query('DELETE FROM [dbo].[Region_Percentage_Uplift]');
 
       // Insert new data
-      for (const region of regions) {
+        for (const region of regions) {
         if (!region.Region || typeof region.Percentage !== 'number') {
           throw new Error('Invalid region data format');
         }
 
-        await transaction.request()
+            await transaction.request()
           .input('Region', sql.NVarChar(100), region.Region)
           .input('Percentage', sql.Decimal(5, 2), region.Percentage)
-          .query(`
-            INSERT INTO [dbo].[Region_Percentage_Uplift] ([Region], [Percentage])
+                .query(`
+                        INSERT INTO [dbo].[Region_Percentage_Uplift] ([Region], [Percentage])
             VALUES (@Region, @Percentage);
-          `);
-      }
+                `);
+        }
 
       // Commit transaction
-      await transaction.commit();
+        await transaction.commit();
       res.json({ message: 'Region uplift data updated successfully' });
     } catch (err) {
       // Rollback transaction on error
-      await transaction.rollback();
+        await transaction.rollback();
       throw err;
     }
   } catch (err) {
@@ -974,7 +1006,7 @@ app.get('/api/adjustment-profiles', async (req, res) => {
   try {
     // Get all profile selections
     const selectionsResult = await pool.request()
-      .query(`
+            .query(`
         SELECT 
           s.Store_ID,
           s.Store_Name,
@@ -1003,7 +1035,7 @@ app.get('/api/adjustment-profiles', async (req, res) => {
       selections: selectionsResult.recordset,
       profileNames: profileNames
     });
-  } catch (err) {
+    } catch (err) {
     logger.error('Error fetching adjustment profiles data:', err);
     res.status(500).json({ 
       error: 'Error fetching adjustment profiles data',
@@ -1036,11 +1068,11 @@ app.post('/api/adjustment-profiles/update', async (req, res) => {
     }
     
     // Update the store's profile for the specified day
-    const result = await pool.request()
+        const result = await pool.request()
       .input('Store_ID', sql.VarChar(50), Store_ID)
       .input('DayOfWeek', sql.VarChar(20), DayOfWeek)
       .input('ProfileName', sql.NVarChar(100), NewProfileName || null)
-      .query(`
+            .query(`
         UPDATE Stores_Master
         SET ${DayOfWeek} = @ProfileName
         WHERE Store_ID = @Store_ID;
@@ -1060,11 +1092,11 @@ app.post('/api/adjustment-profiles/update', async (req, res) => {
     });
   } catch (err) {
     logger.error('Error updating adjustment profile:', err);
-    res.status(500).json({ 
+        res.status(500).json({ 
       error: 'Error updating adjustment profile',
       details: err.message
-    });
-  }
+        });
+    }
 });
 
 // Final Forecast endpoint
@@ -1081,43 +1113,43 @@ app.get('/api/final-forecast', async (req, res) => {
   try {
     // Get the final forecast data
     const result = await pool.request()
-      .query(`
+            .query(`
         SELECT 
-          f.Store_ID,
-          s.Store_Name,
-          s.Region,
-          f.Product_ID,
-          p.Product_Description,
-          f.Forecast_Date,
-          f.Quantity,
-          f.Adjusted_Quantity,
-          f.Status,
-          f.Last_Updated,
-          f.Updated_By
-        FROM Final_Forecast f
-        JOIN Stores_Master s ON f.Store_ID = s.Store_ID
-        JOIN Products_Master p ON f.Product_ID = p.Product_ID
-        WHERE f.Forecast_Date >= DATEADD(day, -7, GETDATE())
-        ORDER BY f.Forecast_Date DESC, s.Store_Name, p.Product_Description;
+          [Store_ID]
+          ,[Store_Name]
+          ,[Region]
+          ,[Product_ID]
+          ,[Product_Description]
+          ,[SUNDAY]
+          ,[MONDAY]
+          ,[TUESDAY]
+          ,[WEDNESDAY]
+          ,[THURSDAY]
+          ,[FRIDAY]
+          ,[SATURDAY]
+          ,[WEEK TOTAL]
+          ,[Date Created]
+        FROM [dbo].[FinalForecastByDay]
+        ORDER BY [Date Created] DESC, [Store_Name], [Product_Description];
       `);
     
     // Get unique regions for filtering
     const regionsResult = await pool.request()
-      .query(`
+            .query(`
         SELECT DISTINCT Region 
-        FROM Stores_Master 
+        FROM [dbo].[FinalForecastByDay]
         WHERE Region IS NOT NULL 
         ORDER BY Region;
       `);
     
     const regions = regionsResult.recordset.map(r => r.Region);
-    
-    res.json({
+
+        res.json({
       forecasts: result.recordset,
       regions: regions,
       lastUpdated: new Date().toISOString()
-    });
-  } catch (err) {
+        });
+    } catch (err) {
     logger.error('Error fetching final forecast data:', err);
     res.status(500).json({ 
       error: 'Error fetching final forecast data',
@@ -1135,36 +1167,36 @@ app.get('/api/final-deliveries', async (req, res) => {
       error: 'Database not connected',
       message: 'The database connection is not available'
     });
-  }
-  
-  try {
+    }
+
+    try {
     // Get the final delivery data
     const result = await pool.request()
       .query(`
         SELECT 
-          d.Delivery_ID,
-          d.Store_ID,
-          s.Store_Name,
-          s.Region,
-          d.Product_ID,
-          p.Product_Description,
-          d.Delivery_Date,
-          d.Quantity,
-          d.Status,
-          d.Last_Updated,
-          d.Updated_By
-        FROM Final_Deliveries d
-        JOIN Stores_Master s ON d.Store_ID = s.Store_ID
-        JOIN Products_Master p ON d.Product_ID = p.Product_ID
-        WHERE d.Delivery_Date >= DATEADD(day, -7, GETDATE())
-        ORDER BY d.Delivery_Date DESC, s.Store_Name, p.Product_Description;
+          [Store_ID]
+          ,[Store_Name]
+          ,[Region]
+          ,[Product_ID]
+          ,[Product_Description]
+          ,[SUNDAY]
+          ,[MONDAY]
+          ,[TUESDAY]
+          ,[WEDNESDAY]
+          ,[THURSDAY]
+          ,[FRIDAY]
+          ,[SATURDAY]
+          ,[WEEK TOTAL]
+          ,[Date Created]
+        FROM [dbo].[FinalDeliveries]
+        ORDER BY [Date Created] DESC, [Store_Name], [Product_Description];
       `);
     
     // Get unique regions for filtering
     const regionsResult = await pool.request()
       .query(`
         SELECT DISTINCT Region 
-        FROM Stores_Master 
+        FROM [dbo].[FinalDeliveries]
         WHERE Region IS NOT NULL 
         ORDER BY Region;
       `);
@@ -1176,7 +1208,7 @@ app.get('/api/final-deliveries', async (req, res) => {
       regions: regions,
       lastUpdated: new Date().toISOString()
     });
-  } catch (err) {
+    } catch (err) {
     logger.error('Error fetching final deliveries data:', err);
     res.status(500).json({ 
       error: 'Error fetching final deliveries data',
