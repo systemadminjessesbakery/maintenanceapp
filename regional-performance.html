@@ -713,80 +713,64 @@
         }
 
         async function fetchRegionalData() {
-            const startDate = document.getElementById('startDate').value;
-            const endDate = document.getElementById('endDate').value;
-            
-            if (!startDate || !endDate) {
-                showError('Please select a valid date range');
-                return;
-            }
-            
-            // Show loading indicator
-            const tableBody = document.getElementById('regionDataBody');
-            if (tableBody) {
-                tableBody.innerHTML = '<tr><td colspan="11" style="text-align:center;">Loading data...</td></tr>';
-            }
-            
             try {
-                // Fetch data with date parameters
-                const response = await fetch(`/api/regional-performance?start=${startDate}&end=${endDate}`);
+                // Show loading indicator
+                document.getElementById('loadingIndicator').style.display = 'block';
+                
+                // Get date range
+                const startDate = document.getElementById('startDate').value;
+                const endDate = document.getElementById('endDate').value;
+                
+                // Validate date range
+                if (startDate && endDate && new Date(startDate) > new Date(endDate)) {
+                    throw new Error('Start date cannot be after end date');
+                }
+                
+                // Build URL with query parameters
+                let url = '/api/regional-performance';
+                const params = new URLSearchParams();
+                if (startDate) params.append('start', startDate);
+                if (endDate) params.append('end', endDate);
+                if (params.toString()) url += '?' + params.toString();
+                
+                // Add timestamp to prevent caching
+                url += (params.toString() ? '&' : '?') + '_t=' + new Date().getTime();
+                
+                // Fetch data with no-cache option
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: {
+                        'Cache-Control': 'no-cache, no-store, must-revalidate',
+                        'Pragma': 'no-cache',
+                        'Expires': '0'
+                    }
+                });
                 
                 if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}, message: ${await response.text()}`);
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || 'Failed to fetch regional performance data');
                 }
                 
-                const data = await response.json();
+                const result = await response.json();
                 
-                if (!data || data.length === 0) {
-                    showNoData();
-                    return;
+                // Update the data with the new format
+                regionalData = result.data;
+                
+                // Update the last refresh time
+                const lastRefreshTime = document.getElementById('lastRefreshTime');
+                if (lastRefreshTime) {
+                    lastRefreshTime.textContent = new Date(result.timestamp).toLocaleString();
                 }
                 
-                // Store the data globally
-                allData = data;
-                filteredData = [...data];
+                // Apply filters and update the display
+                applyFilters();
                 
-                // Render data
-                renderTable(data);
-                updateSummary(data);
-                updateRankings(data);
-                
+                // Hide loading indicator
+                document.getElementById('loadingIndicator').style.display = 'none';
             } catch (error) {
-                console.error('Error fetching regional data:', error);
-                showError('Error loading regional data: ' + error.message);
-            }
-        }
-        
-        function showError(message) {
-            const tableBody = document.getElementById('regionDataBody');
-            if (tableBody) {
-                tableBody.innerHTML = `
-                    <tr>
-                        <td colspan="11" style="text-align: center; padding: 20px;">
-                            <div style="color: #a94442;">
-                                <i class="fas fa-exclamation-circle"></i> ${message}
-                            </div>
-                            <button onclick="fetchRegionalData()" class="btn btn-green" style="margin-top: 10px;">
-                                <i class="fas fa-sync-alt"></i> Retry
-                            </button>
-                        </td>
-                    </tr>
-                `;
-            }
-        }
-        
-        function showNoData() {
-            const tableBody = document.getElementById('regionDataBody');
-            if (tableBody) {
-                tableBody.innerHTML = `
-                    <tr>
-                        <td colspan="11" style="text-align: center; padding: 20px;">
-                            <div style="color: #666;">
-                                <i class="fas fa-info-circle"></i> No regional performance data found for the selected date range
-                            </div>
-                        </td>
-                    </tr>
-                `;
+                console.error('Error fetching regional performance data:', error);
+                document.getElementById('loadingIndicator').style.display = 'none';
+                alert('Error: ' + error.message);
             }
         }
 

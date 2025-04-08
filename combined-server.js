@@ -172,6 +172,11 @@ app.get('/debug', (req, res) => {
 app.get('/api/regional-performance', async (req, res) => {
   logger.debug('Received request for /api/regional-performance');
   
+  // Add cache control headers to prevent caching
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
+  
   if (!poolConnected) {
     return res.status(503).json({
       error: 'Database not connected',
@@ -204,9 +209,9 @@ app.get('/api/regional-performance', async (req, res) => {
       request.input('EndDate', sql.Date, defaultEndDate);
     }
     
-    // Query the view directly
+    // Query the view directly with NOLOCK hint to ensure fresh data
     const result = await request.query(`
-      SELECT * FROM [dbo].[vw_Cumulative_Weekly_Region_Sales]
+      SELECT * FROM [dbo].[vw_Cumulative_Weekly_Region_Sales] WITH (NOLOCK)
       WHERE Transaction_Date >= @StartDate
       AND Transaction_Date <= @EndDate
       ORDER BY Week_End DESC, Region, Product_Description;
@@ -220,7 +225,13 @@ app.get('/api/regional-performance', async (req, res) => {
       });
     }
     
-    res.json(result.recordset);
+    // Add timestamp to response
+    const response = {
+      data: result.recordset,
+      timestamp: new Date().toISOString()
+    };
+    
+    res.json(response);
   } catch (err) {
     logger.error('Error fetching regional performance data:', err);
     res.status(500).json({ 
@@ -482,7 +493,7 @@ app.post('/api/stores', async (req, res) => {
 app.put('/api/stores/:storeId', async (req, res) => {
   const storeId = req.params.storeId;
   const updates = req.body;
-  logger.debug(`Received request to update store ID: ${storeId}`);
+  logger.debug(`Received request to update store ID: ${storeId}, updates:`, updates);
   
   if (!poolConnected) {
     return res.status(503).json({
@@ -501,20 +512,12 @@ app.put('/api/stores/:storeId', async (req, res) => {
       return res.status(404).json({ error: 'Store not found' });
     }
 
-    // Validate required fields
-    if (updates.Store_Name !== undefined && updates.Store_Name.trim() === '') {
+    // Validate required fields if they are being updated
+    if (updates.Store_Name === '') {
       return res.status(400).json({ error: 'Store Name cannot be empty' });
     }
-    if (updates.Region !== undefined && updates.Region.trim() === '') {
+    if (updates.Region === '') {
       return res.status(400).json({ error: 'Region cannot be empty' });
-    }
-
-    // Validate field lengths
-    if (updates.Store_Name !== undefined && updates.Store_Name.length > 500) {
-      return res.status(400).json({ error: 'Store Name exceeds maximum length of 500 characters' });
-    }
-    if (updates.Region !== undefined && updates.Region.length > 500) {
-      return res.status(400).json({ error: 'Region exceeds maximum length of 500 characters' });
     }
 
     const request = pool.request()
@@ -526,12 +529,20 @@ app.put('/api/stores/:storeId', async (req, res) => {
       if (key === 'Store_ID') continue; // Skip Store_ID as it's the identifier
 
       if (['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SPECIAL_FRIDAY', 'SPECIAL_SUNDAY'].includes(key)) {
-        // Handle boolean fields
-        request.input(key, sql.Bit, value === 'TRUE' ? 1 : 0);
+        // Handle boolean fields - convert string 'TRUE'/'FALSE' to bit 1/0
+        const boolValue = value === 'TRUE' ? 1 : 0;
+        request.input(key, sql.Bit, boolValue);
+        updateFields.push(`${key} = @${key}`);
+      } else if (value === null || value === undefined) {
+        // Skip null/undefined values
+        continue;
+      } else if (typeof value === 'string') {
+        // Handle string fields
+        request.input(key, sql.NVarChar(500), value.trim());
         updateFields.push(`${key} = @${key}`);
       } else {
-        // Handle other fields (Store_Name, Region, State, etc.)
-        request.input(key, sql.NVarChar(500), value.trim());
+        // Handle other types
+        request.input(key, sql.NVarChar(500), value.toString());
         updateFields.push(`${key} = @${key}`);
       }
     }
@@ -540,20 +551,24 @@ app.put('/api/stores/:storeId', async (req, res) => {
       return res.status(400).json({ error: 'No valid fields to update' });
     }
 
+    // Add Updated_At to the update fields
+    updateFields.push('Updated_At = GETDATE()');
+
     const query = `
       UPDATE Stores_Master 
-      SET ${updateFields.join(', ')},
-          Updated_At = GETDATE()
+      SET ${updateFields.join(', ')}
+      OUTPUT INSERTED.*
       WHERE Store_ID = @Store_ID;
-      
-      SELECT * FROM Stores_Master WHERE Store_ID = @Store_ID;
     `;
 
+    logger.debug('Executing update query:', query);
     const result = await request.query(query);
-    logger.info(`Store ${storeId} updated successfully`);
+    
     if (result.recordset.length > 0) {
+      logger.info(`Store ${storeId} updated successfully`);
       res.json(result.recordset[0]);
     } else {
+      logger.warn(`Store ${storeId} update succeeded but no rows returned`);
       res.json({ message: 'Store updated successfully' });
     }
   } catch (err) {
