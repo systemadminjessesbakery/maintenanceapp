@@ -432,7 +432,7 @@ app.post('/api/stores', async (req, res) => {
         INVOICED, XERO_CODE, XERO_CUSTOMERID,
         SUN_OVERRIDE, MON_OVERRIDE, TUE_OVERRIDE, WED_OVERRIDE,
         THU_OVERRIDE, FRI_OVERRIDE, SAT_OVERRIDE,
-        Created_At, Updated_At
+        Created_At
       )
       VALUES (
         @Store_ID, @Store_Name, @Region, @State, @Active, @Address, @Supplier_Code,
@@ -442,7 +442,7 @@ app.post('/api/stores', async (req, res) => {
         @INVOICED, @XERO_CODE, @XERO_CUSTOMERID,
         @SUN_OVERRIDE, @MON_OVERRIDE, @TUE_OVERRIDE, @WED_OVERRIDE,
         @THU_OVERRIDE, @FRI_OVERRIDE, @SAT_OVERRIDE,
-        GETDATE(), GETDATE()
+        GETDATE()
       );
       
       SELECT * FROM Stores_Master WHERE Store_ID = @Store_ID;
@@ -625,162 +625,122 @@ app.post('/api/stores/:storeId/diagnostic-update', async (req, res) => {
     const store = storeResult.recordset[0];
     logger.info(`Current store data: ${JSON.stringify(store)}`);
     
-    // Try simplest possible update with single field
-    const testField = 'Updated_At';
-    const testValue = new Date().toISOString();
+    // Try updating with provided fields
+    const request = pool.request()
+      .input('Store_ID', sql.NVarChar(50), storeId);
     
-    try {
-      const simpleResult = await pool.request()
-        .input('Store_ID', sql.NVarChar(50), storeId)
-        .query(`
-          UPDATE Stores_Master 
-          SET ${testField} = GETDATE()
-          WHERE Store_ID = @Store_ID;
+    const updateFields = [];
+    const typeMapping = {};
+    
+    // Build type mapping from schema
+    schemaInfo.forEach(col => {
+      typeMapping[col.COLUMN_NAME] = {
+        type: col.DATA_TYPE,
+        length: col.CHARACTER_MAXIMUM_LENGTH
+      };
+    });
+    
+    // Process each field with exact schema type matching
+    for (const [key, value] of Object.entries(updates)) {
+      if (key === 'Store_ID' || !typeMapping[key]) continue;
+      
+      const fieldInfo = typeMapping[key];
+      logger.info(`Processing field ${key} with type ${fieldInfo.type}, length ${fieldInfo.length}`);
+      
+      let sqlType;
+      let processedValue = value;
+      
+      // Match SQL type exactly based on schema
+      switch(fieldInfo.type.toLowerCase()) {
+        case 'nvarchar':
+        case 'varchar':
+          sqlType = fieldInfo.type === 'nvarchar' ? 
+                   sql.NVarChar(fieldInfo.length === -1 ? 'max' : fieldInfo.length) : 
+                   sql.VarChar(fieldInfo.length === -1 ? 'max' : fieldInfo.length);
           
-          SELECT * FROM Stores_Master WHERE Store_ID = @Store_ID;
-        `);
-      
-      logger.info(`Simple timestamp update successful`);
-      
-      // Now try updating with provided fields
-      const request = pool.request()
-        .input('Store_ID', sql.NVarChar(50), storeId);
-      
-      const updateFields = [];
-      const typeMapping = {};
-      
-      // Build type mapping from schema
-      schemaInfo.forEach(col => {
-        typeMapping[col.COLUMN_NAME] = {
-          type: col.DATA_TYPE,
-          length: col.CHARACTER_MAXIMUM_LENGTH
-        };
-      });
-      
-      // Process each field with exact schema type matching
-      for (const [key, value] of Object.entries(updates)) {
-        if (key === 'Store_ID' || !typeMapping[key]) continue;
-        
-        const fieldInfo = typeMapping[key];
-        logger.info(`Processing field ${key} with type ${fieldInfo.type}, length ${fieldInfo.length}`);
-        
-        let sqlType;
-        let processedValue = value;
-        
-        // Match SQL type exactly based on schema
-        switch(fieldInfo.type.toLowerCase()) {
-          case 'nvarchar':
-          case 'varchar':
-            sqlType = fieldInfo.type === 'nvarchar' ? 
-                     sql.NVarChar(fieldInfo.length === -1 ? 'max' : fieldInfo.length) : 
-                     sql.VarChar(fieldInfo.length === -1 ? 'max' : fieldInfo.length);
-            
-            // Handle null and string conversion carefully
-            if (value === null || value === undefined) {
-              processedValue = null;
-            } else if (typeof value !== 'string') {
-              processedValue = String(value);
-            }
-            break;
-            
-          case 'bit':
-            sqlType = sql.Bit;
-            // Convert boolean-like values to bit
-            if (value === null || value === undefined) {
-              processedValue = null;
-            } else if (typeof value === 'boolean') {
-              processedValue = value ? 1 : 0;
-            } else if (typeof value === 'string') {
-              const normalized = value.toUpperCase().trim();
-              processedValue = (normalized === 'TRUE' || normalized === '1' || normalized === 'YES') ? 1 : 0;
-            } else {
-              processedValue = value ? 1 : 0;
-            }
-            break;
-            
-          case 'datetime':
-          case 'datetime2':
-            sqlType = sql.DateTime2;
-            if (value === null || value === undefined) {
-              processedValue = null;
-            } else if (value instanceof Date) {
-              processedValue = value;
-            } else if (typeof value === 'string') {
-              try {
-                processedValue = new Date(value);
-              } catch (e) {
-                processedValue = null;
-              }
-            } else {
+          // Handle null and string conversion carefully
+          if (value === null || value === undefined) {
+            processedValue = null;
+          } else if (typeof value !== 'string') {
+            processedValue = String(value);
+          }
+          break;
+          
+        case 'bit':
+          sqlType = sql.Bit;
+          // Convert boolean-like values to bit
+          if (value === null || value === undefined) {
+            processedValue = null;
+          } else if (typeof value === 'boolean') {
+            processedValue = value ? 1 : 0;
+          } else if (typeof value === 'string') {
+            const normalized = value.toUpperCase().trim();
+            processedValue = (normalized === 'TRUE' || normalized === '1' || normalized === 'YES') ? 1 : 0;
+          } else {
+            processedValue = value ? 1 : 0;
+          }
+          break;
+          
+        case 'datetime':
+        case 'datetime2':
+          sqlType = sql.DateTime2;
+          if (value === null || value === undefined) {
+            processedValue = null;
+          } else if (value instanceof Date) {
+            processedValue = value;
+          } else if (typeof value === 'string') {
+            try {
+              processedValue = new Date(value);
+            } catch (e) {
               processedValue = null;
             }
-            break;
-            
-          default:
-            // For other types, use generic conversion
-            sqlType = sql.NVarChar(fieldInfo.length === -1 ? 'max' : fieldInfo.length);
-            if (value === null || value === undefined) {
-              processedValue = null;
-            } else if (typeof value !== 'string') {
-              processedValue = String(value);
-            }
-        }
-        
-        // Add parameter with exact type from schema
-        logger.info(`Adding parameter ${key} with value: ${processedValue}, SQL type: ${sqlType.name}`);
-        request.input(key, sqlType, processedValue);
-        updateFields.push(`${key} = @${key}`);
+          } else {
+            processedValue = null;
+          }
+          break;
+          
+        default:
+          // For other types, use generic conversion
+          sqlType = sql.NVarChar(fieldInfo.length === -1 ? 'max' : fieldInfo.length);
+          if (value === null || value === undefined) {
+            processedValue = null;
+          } else if (typeof value !== 'string') {
+            processedValue = String(value);
+          }
       }
       
-      if (updateFields.length === 0) {
-        return res.status(400).json({ 
-          success: true,
-          message: 'Simple timestamp update successful, but no valid fields in payload to update',
-          timestamp: simpleResult.recordset[0]
-        });
-      }
-      
-      const updateQuery = `
-        UPDATE Stores_Master 
-        SET ${updateFields.join(', ')}
-        WHERE Store_ID = @Store_ID;
-        
-        SELECT * FROM Stores_Master WHERE Store_ID = @Store_ID;
-      `;
-      
-      logger.info(`Diagnostic update query: ${updateQuery}`);
-      
-      const result = await request.query(updateQuery);
-      
-      res.json({
+      // Add parameter with exact type from schema
+      logger.info(`Adding parameter ${key} with value: ${processedValue}, SQL type: ${sqlType.name}`);
+      request.input(key, sqlType, processedValue);
+      updateFields.push(`${key} = @${key}`);
+    }
+    
+    if (updateFields.length === 0) {
+      return res.status(400).json({ 
         success: true,
-        message: 'Diagnostic update successful',
-        updatedFields: updateFields,
-        data: result.recordset[0]
-      });
-    } catch (sqlErr) {
-      logger.error(`=== DIAGNOSTIC SQL ERROR ===`);
-      logger.error(`Message: ${sqlErr.message}`);
-      logger.error(`Number: ${sqlErr.number}, State: ${sqlErr.state}`);
-      logger.error(`Line Number: ${sqlErr.lineNumber}`);
-      logger.error(`Class: ${sqlErr.class}`);
-      logger.error(`Procedure: ${sqlErr.procName || 'N/A'}`);
-      logger.error(`Stack: ${sqlErr.stack}`);
-      
-      return res.status(500).json({ 
-        success: false,
-        error: 'SQL execution failed',
-        sqlError: {
-          message: sqlErr.message,
-          number: sqlErr.number,
-          state: sqlErr.state,
-          lineNumber: sqlErr.lineNumber,
-          class: sqlErr.class,
-          procedure: sqlErr.procName
-        },
-        query: updateFields?.join(', ') || 'No update fields'
+        message: 'Simple timestamp update successful, but no valid fields in payload to update',
+        timestamp: new Date().toISOString()
       });
     }
+    
+    const updateQuery = `
+      UPDATE Stores_Master 
+      SET ${updateFields.join(', ')}
+      WHERE Store_ID = @Store_ID;
+      
+      SELECT * FROM Stores_Master WHERE Store_ID = @Store_ID;
+    `;
+    
+    logger.info(`Diagnostic update query: ${updateQuery}`);
+    
+    const result = await request.query(updateQuery);
+    
+    res.json({
+      success: true,
+      message: 'Diagnostic update successful',
+      updatedFields: updateFields,
+      data: result.recordset[0]
+    });
   } catch (err) {
     logger.error(`Error in diagnostic update for store ${storeId}:`, err);
     res.status(500).json({ 
@@ -823,8 +783,7 @@ app.get('/api/stores/:storeId/test-update', async (req, res) => {
         .input('Address', sql.NVarChar(255), store.Address || 'Test Address ' + Date.now())
         .query(`
           UPDATE Stores_Master 
-          SET Address = @Address, 
-              Updated_At = GETDATE()
+          SET Address = @Address
           WHERE Store_ID = @Store_ID;
           
           SELECT * FROM Stores_Master WHERE Store_ID = @Store_ID;
@@ -898,6 +857,67 @@ app.get('/api/test-db-connection', async (req, res) => {
     
   } catch (err) {
     logger.error('Database connection test error:', err);
+    res.status(500).json({
+      status: 'error',
+      error: err.message,
+      code: err.number,
+      state: err.state
+    });
+  }
+});
+
+// Verify Stores_Master schema
+app.get('/api/verify-schema', async (req, res) => {
+  logger.info('Verifying Stores_Master schema');
+  
+  try {
+    // Get schema info
+    const schemaResult = await pool.request()
+      .query(`
+        SELECT 
+          COLUMN_NAME,
+          DATA_TYPE,
+          CHARACTER_MAXIMUM_LENGTH,
+          IS_NULLABLE
+        FROM 
+          INFORMATION_SCHEMA.COLUMNS 
+        WHERE 
+          TABLE_NAME = 'Stores_Master'
+        ORDER BY 
+          ORDINAL_POSITION;
+      `);
+    
+    // Expected columns from your query
+    const expectedColumns = [
+      'Store_ID', 'Store_Name', 'Region', 'State', 'Active',
+      'Run_ID', 'Shelf_Limit', 'Latitude', 'Longitude',
+      'Address', 'Supplier_Code',
+      'SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY',
+      'INVOICED', 'XERO_CODE', 'XERO_CUSTOMERID',
+      'SPECIAL_FRIDAY', 'SPECIAL_SUNDAY',
+      'SUN_OVERRIDE', 'MON_OVERRIDE', 'TUE_OVERRIDE', 'WED_OVERRIDE',
+      'THU_OVERRIDE', 'FRI_OVERRIDE', 'SAT_OVERRIDE'
+    ];
+
+    // Check which expected columns exist and which are missing
+    const existingColumns = schemaResult.recordset.map(col => col.COLUMN_NAME);
+    const missingColumns = expectedColumns.filter(col => !existingColumns.includes(col));
+    const extraColumns = existingColumns.filter(col => !expectedColumns.includes(col));
+
+    res.json({
+      status: 'success',
+      schemaDetails: schemaResult.recordset,
+      analysis: {
+        expectedColumns,
+        existingColumns,
+        missingColumns,
+        extraColumns,
+        allColumnsPresent: missingColumns.length === 0
+      }
+    });
+    
+  } catch (err) {
+    logger.error('Schema verification error:', err);
     res.status(500).json({
       status: 'error',
       error: err.message,
