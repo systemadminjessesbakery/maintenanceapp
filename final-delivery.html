@@ -310,11 +310,11 @@
 
                 console.log('API request successful, parsing response...');
                 const data = await response.json();
-                console.log(`Received ${data.length} records`);
+                console.log(`Received ${data.deliveries?.length || 0} records`);
                 
-                allData = data;
-                updateMetrics(data);
-                populateTable(data);
+                allData = data.deliveries || [];
+                updateMetrics(allData);
+                populateTable(allData);
                 loading.style.display = 'none';
                 console.log('Data loaded and displayed successfully');
             } catch (error) {

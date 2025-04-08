@@ -144,6 +144,7 @@
             border-radius: 8px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             overflow: auto;
+            margin-top: 20px;
         }
 
         table {
@@ -198,7 +199,7 @@
             margin: 10% auto;
             padding: 20px;
             width: 80%;
-            max-width: 600px;
+            max-width: 500px;
             border-radius: 8px;
             position: relative;
         }
@@ -207,7 +208,7 @@
             position: absolute;
             right: 20px;
             top: 10px;
-            font-size: 28px;
+            font-size: 24px;
             cursor: pointer;
         }
 
@@ -218,15 +219,30 @@
         .form-group label {
             display: block;
             margin-bottom: 5px;
-            font-weight: bold;
+            color: #666;
         }
 
-        .form-group input, .form-group select {
+        .form-group input,
+        .form-group select {
             width: 100%;
             padding: 8px;
             border: 1px solid #ddd;
             border-radius: 4px;
-            box-sizing: border-box;
+        }
+
+        .submit-button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 10px;
+        }
+
+        .submit-button:hover {
+            background-color: #45a049;
         }
 
         .filter-icon {
@@ -266,77 +282,6 @@
 
         .filter-buttons button:hover {
             background-color: #45a049;
-        }
-
-        /* New section styles */
-        .section {
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            margin-bottom: 20px;
-            padding: 20px;
-        }
-
-        .section-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 15px;
-        }
-
-        .date-range-selector {
-            display: flex;
-            gap: 10px;
-            align-items: center;
-        }
-
-        .date-input {
-            padding: 8px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-        }
-
-        .region-uplift-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
-            margin-top: 20px;
-        }
-
-        .region-card {
-            background: #f8f9fa;
-            padding: 15px;
-            border-radius: 6px;
-            border: 1px solid #ddd;
-        }
-
-        .iframe-container {
-            width: 100%;
-            height: 600px;
-            border: none;
-            margin-top: 10px;
-        }
-
-        .sharepoint-link {
-            color: #4CAF50;
-            text-decoration: none;
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
-        }
-
-        .sharepoint-link:hover {
-            text-decoration: underline;
-        }
-
-        .actual-sales-table {
-            width: 100%;
-            margin-top: 20px;
-        }
-
-        .actual-sales-table th {
-            background-color: #4CAF50;
-            color: white;
         }
     </style>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
@@ -381,20 +326,17 @@
     </div>
 
     <div class="button-container">
-        <button class="btn" onclick="refreshData()">
-            <i class="fas fa-sync-alt"></i> Refresh Data
-        </button>
-        <button class="btn" onclick="addNewProduct()">
-            <i class="fas fa-plus"></i> Add New Product
-        </button>
-        <button class="clear-filters" onclick="clearAllFilters()">
-            <i class="fas fa-filter"></i> Clear All Filters
-        </button>
         <button class="btn" onclick="exportToExcel()">
-            <i class="fas fa-file-excel"></i> Export to Excel
+            <i class="fas fa-file-excel"></i>
+            Export to Excel
         </button>
         <button class="btn" onclick="exportToPDF()">
-            <i class="fas fa-file-pdf"></i> Export to PDF
+            <i class="fas fa-file-pdf"></i>
+            Export to PDF
+        </button>
+        <button class="btn clear-filters" onclick="clearAllFilters()">
+            <i class="fas fa-times"></i>
+            Clear All Filters
         </button>
     </div>
 
@@ -402,19 +344,13 @@
         <table id="productsTable">
             <thead>
                 <tr>
-                    <th>Product ID <span class="filter-icon" onclick="showFilter('Product_ID', this)">🔍</span></th>
-                    <th>Product Description <span class="filter-icon" onclick="showFilter('Product_Description', this)">🔍</span></th>
-                    <th>Product Family <span class="filter-icon" onclick="showFilter('Product_Family', this)">🔍</span></th>
-                    <th>Woolworths Code <span class="filter-icon" onclick="showFilter('WoolworthsCode', this)">🔍</span></th>
-                    <th>Coles Code <span class="filter-icon" onclick="showFilter('ColesCode', this)">🔍</span></th>
-                    <th>Harris Farm Code <span class="filter-icon" onclick="showFilter('HarrisFarmCode', this)">🔍</span></th>
-                    <th>Other Code <span class="filter-icon" onclick="showFilter('OtherCode', this)">🔍</span></th>
-                    <th>Baking UOM <span class="filter-icon" onclick="showFilter('BakingUOM', this)">🔍</span></th>
-                    <th>Baking Quantity <span class="filter-icon" onclick="showFilter('BakingQuantity', this)">🔍</span></th>
-                    <th>Unit Per Product <span class="filter-icon" onclick="showFilter('UnitPerProduct', this)">🔍</span></th>
-                    <th>Wholesale Cost (AUD) <span class="filter-icon" onclick="showFilter('Wholesale_Cost_AUD', this)">🔍</span></th>
-                    <th>RRP (AUD) <span class="filter-icon" onclick="showFilter('RRP_AUD', this)">🔍</span></th>
-                    <th>Production Description <span class="filter-icon" onclick="showFilter('Product_Description_Production', this)">🔍</span></th>
+                    <th>Product ID<i class="fas fa-filter filter-icon" onclick="showFilter('Product_ID')"></i></th>
+                    <th>Description<i class="fas fa-filter filter-icon" onclick="showFilter('Description')"></i></th>
+                    <th>Product Family<i class="fas fa-filter filter-icon" onclick="showFilter('Product_Family')"></i></th>
+                    <th>Unit Per Product</th>
+                    <th>Wholesale Cost (AUD)</th>
+                    <th>RRP (AUD)</th>
+                    <th>Production Description</th>
                     <th>Actions</th>
                 </tr>
             </thead>
@@ -422,47 +358,22 @@
         </table>
     </div>
 
-    <!-- Modal for adding/editing products -->
-    <div id="productModal" class="modal">
+    <div id="editModal" class="modal">
         <div class="modal-content">
             <span class="close">&times;</span>
-            <h2 id="modalTitle">Add New Product</h2>
-            <form id="productForm">
+            <h2>Edit Product</h2>
+            <form id="editForm">
                 <div class="form-group">
                     <label for="productId">Product ID:</label>
-                    <input type="text" id="productId" required>
+                    <input type="text" id="productId" readonly>
                 </div>
                 <div class="form-group">
-                    <label for="productDescription">Product Description:</label>
-                    <input type="text" id="productDescription" required>
+                    <label for="description">Description:</label>
+                    <input type="text" id="description">
                 </div>
                 <div class="form-group">
                     <label for="productFamily">Product Family:</label>
                     <select id="productFamily"></select>
-                </div>
-                <div class="form-group">
-                    <label for="woolworthsCode">Woolworths Code:</label>
-                    <input type="text" id="woolworthsCode">
-                </div>
-                <div class="form-group">
-                    <label for="colesCode">Coles Code:</label>
-                    <input type="text" id="colesCode">
-                </div>
-                <div class="form-group">
-                    <label for="harrisFarmCode">Harris Farm Code:</label>
-                    <input type="text" id="harrisFarmCode">
-                </div>
-                <div class="form-group">
-                    <label for="otherCode">Other Code:</label>
-                    <input type="text" id="otherCode">
-                </div>
-                <div class="form-group">
-                    <label for="bakingUOM">Baking UOM:</label>
-                    <input type="text" id="bakingUOM">
-                </div>
-                <div class="form-group">
-                    <label for="bakingQuantity">Baking Quantity:</label>
-                    <input type="number" id="bakingQuantity" step="0.01" min="0" value="0">
                 </div>
                 <div class="form-group">
                     <label for="unitPerProduct">Unit Per Product:</label>
@@ -482,39 +393,6 @@
                 </div>
                 <button type="submit" class="submit-button">Save</button>
             </form>
-        </div>
-    </div>
-
-    <!-- Region Uplift Section -->
-    <div id="region-uplift" class="section">
-        <h2>Region Uplift</h2>
-        <div class="region-uplift-grid" id="regionUpliftGrid">
-            <!-- Region uplift content will be loaded here -->
-        </div>
-    </div>
-
-    <div id="wastage-reports" class="section">
-        <h2>Wastage Reports</h2>
-        <div class="button-container">
-            <button class="btn" onclick="openWastageReport()">
-                <i class="fas fa-file-alt"></i> Open Wastage Report
-            </button>
-        </div>
-    </div>
-
-    <div id="packing-slips" class="section">
-        <h2>Packing Slips</h2>
-        <div class="button-container">
-            <button class="btn" onclick="openPackingSlip()">
-                <i class="fas fa-file-alt"></i> Open Packing Slip
-            </button>
-        </div>
-    </div>
-
-    <div id="actual-sales" class="section">
-        <h2>Actual Sales</h2>
-        <div class="actual-sales-table">
-            <!-- Actual sales table will be loaded here -->
         </div>
     </div>
 
@@ -552,549 +430,65 @@
         }
 
         function populateTable(data) {
-            if (!Array.isArray(data)) {
-                console.error('Invalid data format for table population');
-                return;
-            }
-
             const tbody = document.querySelector('#productsTable tbody');
-            tbody.innerHTML = '';
-            
-            data.forEach(product => {
-                const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td>${product.Product_ID || ''}</td>
-                    <td>${product.Product_Description || ''}</td>
-                    <td>${product.Product_Family || ''}</td>
-                    <td>${product.WoolworthsCode || 'undefined'}</td>
-                    <td>${product.ColesCode || 'UNIT'}</td>
-                    <td>${product.HarrisFarmCode || '1'}</td>
-                    <td>${product.OtherCode || '$NaN'}</td>
-                    <td>${product.BakingUOM || ''}</td>
-                    <td>${product.BakingQuantity || ''}</td>
-                    <td>${product.UnitPerProduct || ''}</td>
-                    <td>${product.Wholesale_Cost_AUD ? '$' + parseFloat(product.Wholesale_Cost_AUD).toFixed(2) : ''}</td>
-                    <td>${product.RRP_AUD ? '$' + parseFloat(product.RRP_AUD).toFixed(2) : ''}</td>
-                    <td>${product.Product_Description_Production || ''}</td>
+            tbody.innerHTML = data.map(product => `
+                <tr>
+                    <td>${product.Product_ID}</td>
+                    <td>${product.Description}</td>
+                    <td>${product.Product_Family}</td>
+                    <td>${product.Unit_Per_Product}</td>
+                    <td>$${parseFloat(product.Wholesale_Cost_AUD).toFixed(2)}</td>
+                    <td>$${parseFloat(product.RRP_AUD).toFixed(2)}</td>
+                    <td>${product.Production_Description || ''}</td>
                     <td>
-                        <button class="edit-button" onclick="toggleEditMode(this)">
+                        <button class="edit-button" onclick="editProduct('${product.Product_ID}')">
                             <i class="fas fa-edit"></i>
                         </button>
                     </td>
-                `;
-
-                // Add click handlers for editable cells
-                const editableCells = row.querySelectorAll('td:not(:last-child)');
-                editableCells.forEach((cell, index) => {
-                    cell.classList.add('editable');
-                    const fieldMap = [
-                        'Product_ID',
-                        'Product_Description',
-                        'Product_Family',
-                        'WoolworthsCode',
-                        'ColesCode',
-                        'HarrisFarmCode',
-                        'OtherCode',
-                        'BakingUOM',
-                        'BakingQuantity',
-                        'UnitPerProduct',
-                        'Wholesale_Cost_AUD',
-                        'RRP_AUD',
-                        'Product_Description_Production'
-                    ];
-                    cell.dataset.field = fieldMap[index];
-                    cell.dataset.id = product.Product_ID;
-
-                    cell.addEventListener('click', function() {
-                        if (!this.parentElement.classList.contains('edit-mode')) return;
-                        if (this.querySelector('input')) return;
-                        
-                        const id = this.dataset.id;
-                        const field = this.dataset.field;
-                        const currentValue = this.textContent.replace('$', '');
-                        
-                        const input = document.createElement('input');
-                        input.type = ['BakingQuantity', 'UnitPerProduct', 'Wholesale_Cost_AUD', 'RRP_AUD'].includes(field) ? 'number' : 'text';
-                        if (input.type === 'number') {
-                            input.step = field.includes('_AUD') ? '0.01' : '1';
-                            input.min = '0';
-                        }
-                        input.value = currentValue;
-                        input.className = 'edit-input';
-                        
-                        input.addEventListener('blur', async function() {
-                            const newValue = this.value;
-                            if (newValue !== currentValue) {
-                                try {
-                                    const product = products.find(p => p.Product_ID === id);
-                                    if (!product) throw new Error('Product not found');
-                                    
-                                    // Format the value based on the field type
-                                    let formattedValue = newValue;
-                                    if (['BakingQuantity', 'UnitPerProduct', 'Wholesale_Cost_AUD', 'RRP_AUD'].includes(field)) {
-                                        formattedValue = parseFloat(newValue) || 0;
-                                    }
-                                    
-                                    // Update the product object
-                                    product[field] = formattedValue;
-                                    
-                                    const response = await fetch('/api/products/update', {
-                                        method: 'POST',
-                                        headers: {
-                                            'Content-Type': 'application/json'
-                                        },
-                                        body: JSON.stringify(product)
-                                    });
-
-                                    if (!response.ok) {
-                                        throw new Error('Failed to update product');
-                                    }
-
-                                    // Format display value
-                                    let displayValue = formattedValue;
-                                    if (field === 'Wholesale_Cost_AUD' || field === 'RRP_AUD') {
-                                        displayValue = '$' + parseFloat(formattedValue).toFixed(2);
-                                    }
-
-                                    this.parentElement.textContent = displayValue;
-                                    updateMetrics();
-                                    showStatusMessage('Product updated successfully', true);
-                                } catch (error) {
-                                    console.error('Error updating product:', error);
-                                    this.parentElement.textContent = currentValue;
-                                    showStatusMessage('Error updating product: ' + error.message, false);
-                                }
-                            } else {
-                                this.parentElement.textContent = currentValue;
-                            }
-                        });
-
-                        input.addEventListener('keydown', function(e) {
-                            if (e.key === 'Enter') {
-                                this.blur();
-                            } else if (e.key === 'Escape') {
-                                this.value = currentValue;
-                                this.blur();
-                            }
-                        });
-
-                        this.textContent = '';
-                        this.appendChild(input);
-                        input.focus();
-                        input.select();
-                    });
-                });
-
-                tbody.appendChild(row);
-            });
-        }
-
-        function toggleEditMode(button) {
-            const row = button.closest('tr');
-            const isEditMode = row.classList.contains('edit-mode');
-            
-            // Remove edit mode from all rows
-            document.querySelectorAll('tr.edit-mode').forEach(r => {
-                r.classList.remove('edit-mode');
-                r.querySelectorAll('.editable').forEach(cell => {
-                    cell.classList.remove('editing');
-                });
-            });
-            
-            // Toggle edit mode for the clicked row
-            if (!isEditMode) {
-                row.classList.add('edit-mode');
-                row.querySelectorAll('.editable').forEach(cell => {
-                    cell.classList.add('editing');
-                });
-                button.innerHTML = '<i class="fas fa-check"></i>';
-            } else {
-                row.classList.remove('edit-mode');
-                row.querySelectorAll('.editable').forEach(cell => {
-                    cell.classList.remove('editing');
-                });
-                button.innerHTML = '<i class="fas fa-edit"></i>';
-            }
+                </tr>
+            `).join('');
         }
 
         function getFilteredProducts() {
-            let filteredData = products;
-            Object.entries(activeFilters).forEach(([column, values]) => {
-                filteredData = filteredData.filter(row => values.includes(row[column].toString()));
+            return products.filter(product => {
+                return Object.entries(activeFilters).every(([column, values]) => {
+                    return values.includes(product[column]);
+                });
             });
-            return filteredData;
         }
 
-        function clearAllFilters() {
-            activeFilters = {};
-            updateMetrics();
-            populateTable(products);
-        }
-
-        function refreshData() {
-            fetchData();
-        }
-
-        async function editProduct(productId) {
-            const product = products.find(p => p.Product_ID === productId);
-            if (!product) return;
-
-            const modal = document.getElementById('productModal');
-            const form = document.getElementById('productForm');
-            form.innerHTML = `
-                <div class="form-group">
-                    <label for="productId">Product ID</label>
-                    <input type="text" id="productId" value="${product.Product_ID}" readonly>
-                </div>
-                <div class="form-group">
-                    <label for="productDescription">Product Description</label>
-                    <input type="text" id="productDescription" value="${product.Product_Description}" required>
-                </div>
-                <div class="form-group">
-                    <label for="productFamily">Product Family</label>
-                    <select id="productFamily" required>
-                        ${families.map(f => `<option value="${f}" ${f === product.Product_Family ? 'selected' : ''}>${f}</option>`).join('')}
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label for="woolworthsCode">Woolworths Code</label>
-                    <input type="text" id="woolworthsCode" value="${product.WoolworthsCode || ''}">
-                </div>
-                <div class="form-group">
-                    <label for="colesCode">Coles Code</label>
-                    <input type="text" id="colesCode" value="${product.ColesCode || ''}">
-                </div>
-                <div class="form-group">
-                    <label for="harrisFarmCode">Harris Farm Code</label>
-                    <input type="text" id="harrisFarmCode" value="${product.HarrisFarmCode || ''}">
-                </div>
-                <div class="form-group">
-                    <label for="otherCode">Other Code</label>
-                    <input type="text" id="otherCode" value="${product.OtherCode || ''}">
-                </div>
-                <div class="form-group">
-                    <label for="bakingUOM">Baking UOM</label>
-                    <input type="text" id="bakingUOM" value="${product.BakingUOM}" required>
-                </div>
-                <div class="form-group">
-                    <label for="bakingQuantity">Baking Quantity</label>
-                    <input type="number" id="bakingQuantity" value="${product.BakingQuantity}" step="0.01" min="0" required>
-                </div>
-                <div class="form-group">
-                    <label for="unitPerProduct">Unit Per Product</label>
-                    <input type="number" id="unitPerProduct" value="${product.UnitPerProduct}" min="0" required>
-                </div>
-                <div class="form-group">
-                    <label for="wholesaleCost">Wholesale Cost (AUD)</label>
-                    <input type="number" id="wholesaleCost" value="${product.Wholesale_Cost_AUD}" step="0.01" min="0" required>
-                </div>
-                <div class="form-group">
-                    <label for="rrp">RRP (AUD)</label>
-                    <input type="number" id="rrp" value="${product.RRP_AUD}" step="0.01" min="0" required>
-                </div>
-                <div class="form-group">
-                    <label for="productionDescription">Production Description</label>
-                    <input type="text" id="productionDescription" value="${product.Product_Description_Production || ''}">
-                </div>
-                <div class="form-group">
-                    <button type="submit" class="button">Save Changes</button>
-                    <button type="button" class="button" onclick="closeModal()">Cancel</button>
-                </div>
-            `;
-
-            form.onsubmit = async (e) => {
-                e.preventDefault();
-                const updatedProduct = {
-                    Product_ID: document.getElementById('productId').value,
-                    Product_Description: document.getElementById('productDescription').value,
-                    Product_Family: document.getElementById('productFamily').value,
-                    WoolworthsCode: document.getElementById('woolworthsCode').value,
-                    ColesCode: document.getElementById('colesCode').value,
-                    HarrisFarmCode: document.getElementById('harrisFarmCode').value,
-                    OtherCode: document.getElementById('otherCode').value,
-                    BakingUOM: document.getElementById('bakingUOM').value,
-                    BakingQuantity: document.getElementById('bakingQuantity').value,
-                    UnitPerProduct: document.getElementById('unitPerProduct').value,
-                    Wholesale_Cost_AUD: document.getElementById('wholesaleCost').value,
-                    RRP_AUD: document.getElementById('rrp').value,
-                    Product_Description_Production: document.getElementById('productionDescription').value
-                };
-
-                try {
-                    const response = await fetch('/api/products/update', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify(updatedProduct)
-                    });
-
-                    if (!response.ok) {
-                        throw new Error('Failed to update product');
-                    }
-
-                    closeModal();
-                    await fetchData();
-                } catch (error) {
-                    console.error('Error updating product:', error);
-                    alert('Error updating product. Please try again.');
-                }
-            };
-
-            modal.style.display = 'block';
-        }
-
-        function addNewProduct() {
-            const modal = document.getElementById('productModal');
-            const form = document.getElementById('productForm');
-            form.innerHTML = `
-                <div class="form-group">
-                    <label for="productId">Product ID</label>
-                    <input type="text" id="productId" required>
-                </div>
-                <div class="form-group">
-                    <label for="productDescription">Product Description</label>
-                    <input type="text" id="productDescription" required>
-                </div>
-                <div class="form-group">
-                    <label for="productFamily">Product Family</label>
-                    <select id="productFamily" required>
-                        <option value="">Select Family</option>
-                        ${families.map(f => `<option value="${f}">${f}</option>`).join('')}
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label for="woolworthsCode">Woolworths Code</label>
-                    <input type="text" id="woolworthsCode">
-                </div>
-                <div class="form-group">
-                    <label for="colesCode">Coles Code</label>
-                    <input type="text" id="colesCode">
-                </div>
-                <div class="form-group">
-                    <label for="harrisFarmCode">Harris Farm Code</label>
-                    <input type="text" id="harrisFarmCode">
-                </div>
-                <div class="form-group">
-                    <label for="otherCode">Other Code</label>
-                    <input type="text" id="otherCode">
-                </div>
-                <div class="form-group">
-                    <label for="bakingUOM">Baking UOM</label>
-                    <input type="text" id="bakingUOM" required>
-                </div>
-                <div class="form-group">
-                    <label for="bakingQuantity">Baking Quantity</label>
-                    <input type="number" id="bakingQuantity" step="0.01" min="0" required>
-                </div>
-                <div class="form-group">
-                    <label for="unitPerProduct">Unit Per Product</label>
-                    <input type="number" id="unitPerProduct" min="0" required>
-                </div>
-                <div class="form-group">
-                    <label for="wholesaleCost">Wholesale Cost (AUD)</label>
-                    <input type="number" id="wholesaleCost" step="0.01" min="0" required>
-                </div>
-                <div class="form-group">
-                    <label for="rrp">RRP (AUD)</label>
-                    <input type="number" id="rrp" step="0.01" min="0" required>
-                </div>
-                <div class="form-group">
-                    <label for="productionDescription">Production Description</label>
-                    <input type="text" id="productionDescription">
-                </div>
-                <div class="form-group">
-                    <button type="submit" class="button">Add Product</button>
-                    <button type="button" class="button" onclick="closeModal()">Cancel</button>
-                </div>
-            `;
-
-            form.onsubmit = async (e) => {
-                e.preventDefault();
-                const newProduct = {
-                    Product_ID: document.getElementById('productId').value,
-                    Product_Description: document.getElementById('productDescription').value,
-                    Product_Family: document.getElementById('productFamily').value,
-                    WoolworthsCode: document.getElementById('woolworthsCode').value,
-                    ColesCode: document.getElementById('colesCode').value,
-                    HarrisFarmCode: document.getElementById('harrisFarmCode').value,
-                    OtherCode: document.getElementById('otherCode').value,
-                    BakingUOM: document.getElementById('bakingUOM').value,
-                    BakingQuantity: document.getElementById('bakingQuantity').value,
-                    UnitPerProduct: document.getElementById('unitPerProduct').value,
-                    Wholesale_Cost_AUD: document.getElementById('wholesaleCost').value,
-                    RRP_AUD: document.getElementById('rrp').value,
-                    Product_Description_Production: document.getElementById('productionDescription').value
-                };
-
-                try {
-                    const response = await fetch('/api/products/add', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify(newProduct)
-                    });
-
-                    if (!response.ok) {
-                        throw new Error('Failed to add product');
-                    }
-
-                    closeModal();
-                    await fetchData();
-                } catch (error) {
-                    console.error('Error adding product:', error);
-                    alert('Error adding product. Please try again.');
-                }
-            };
-
-            modal.style.display = 'block';
-        }
-
-        function closeModal() {
-            document.getElementById('productModal').style.display = 'none';
-        }
-
-        // Close modal when clicking outside
-        window.onclick = function(event) {
-            const modal = document.getElementById('productModal');
-            if (event.target === modal) {
-                closeModal();
-            }
-        };
-
-        // Close modal when clicking the close button
-        document.querySelector('.close').onclick = closeModal;
-
-        // Export to Excel
-        function exportToExcel() {
-            const filteredProducts = getFilteredProducts();
-            const ws = XLSX.utils.json_to_sheet(filteredProducts.map(p => ({
-                'Product ID': p.Product_ID,
-                'Product Description': p.Product_Description,
-                'Product Family': p.Product_Family,
-                'Woolworths Code': p.WoolworthsCode,
-                'Coles Code': p.ColesCode,
-                'Harris Farm Code': p.HarrisFarmCode,
-                'Other Code': p.OtherCode,
-                'Baking UOM': p.BakingUOM,
-                'Baking Quantity': p.BakingQuantity,
-                'Unit Per Product': p.UnitPerProduct,
-                'Wholesale Cost (AUD)': p.Wholesale_Cost_AUD,
-                'RRP (AUD)': p.RRP_AUD,
-                'Production Description': p.Product_Description_Production
-            })));
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, 'Products');
-            XLSX.writeFile(wb, 'products.xlsx');
-        }
-
-        // Export to PDF
-        function exportToPDF() {
-            const filteredProducts = getFilteredProducts();
-            const { jsPDF } = window.jspdf;
-            const doc = new jsPDF();
-
-            // Add logo
-            const logo = document.querySelector('.logo');
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            canvas.width = logo.width;
-            canvas.height = logo.height;
-            ctx.drawImage(logo, 0, 0);
-            const logoData = canvas.toDataURL('image/png');
-            doc.addImage(logoData, 'PNG', 10, 10, 30, 30);
-
-            // Add title
-            doc.setFontSize(20);
-            doc.text('Products Master Report', 50, 25);
-
-            // Add date
-            doc.setFontSize(12);
-            doc.text(`Generated on: ${new Date().toLocaleString()}`, 50, 35);
-
-            // Add table
-            doc.autoTable({
-                startY: 45,
-                head: [['Product ID', 'Description', 'Family', 'Woolworths Code', 'Coles Code', 'Harris Farm Code', 'Other Code', 'Baking UOM', 'Baking Qty', 'Unit/Product', 'Wholesale Cost', 'RRP', 'Production Desc']],
-                body: filteredProducts.map(p => [
-                    p.Product_ID,
-                    p.Product_Description,
-                    p.Product_Family,
-                    p.WoolworthsCode,
-                    p.ColesCode,
-                    p.HarrisFarmCode,
-                    p.OtherCode,
-                    p.BakingUOM,
-                    p.BakingQuantity,
-                    p.UnitPerProduct,
-                    p.Wholesale_Cost_AUD,
-                    p.RRP_AUD,
-                    p.Product_Description_Production
-                ]),
-                theme: 'grid',
-                headStyles: { fillColor: [41, 128, 185] },
-                styles: { fontSize: 8 }
-            });
-
-            doc.save('products.pdf');
-        }
-
-        function showFilter(column, element) {
-            const existingDropdowns = document.querySelectorAll('.filter-dropdown');
-            existingDropdowns.forEach(dropdown => dropdown.remove());
-
-            const values = [...new Set(products.map(row => row[column]))].filter(value => value !== null && value !== '');
+        function showFilter(column) {
+            const values = [...new Set(products.map(p => p[column]))].sort();
+            const currentFilters = activeFilters[column] || [];
             
             const dropdown = document.createElement('div');
             dropdown.className = 'filter-dropdown';
+            dropdown.innerHTML = `
+                <div class="filter-header">
+                    Filter by ${column.replace(/_/g, ' ')}
+                    <button onclick="clearFilter('${column}')">Clear</button>
+                </div>
+                <div class="filter-items">
+                    ${values.map(value => `
+                        <label>
+                            <input type="checkbox" value="${value}" 
+                                ${currentFilters.includes(value) ? 'checked' : ''}>
+                            ${value}
+                        </label>
+                    `).join('')}
+                </div>
+                <div class="filter-footer">
+                    <button onclick="applyFilter('${column}', this.parentElement.parentElement)">
+                        Apply
+                    </button>
+                </div>
+            `;
             
-            const search = document.createElement('input');
-            search.type = 'text';
-            search.className = 'filter-search';
-            search.placeholder = 'Search...';
-            search.oninput = (e) => {
-                const searchText = e.target.value.toLowerCase();
-                dropdown.querySelectorAll('label').forEach(label => {
-                    const text = label.textContent.toLowerCase();
-                    label.style.display = text.includes(searchText) ? '' : 'none';
-                });
-            };
-            dropdown.appendChild(search);
-
-            values.sort().forEach(value => {
-                const label = document.createElement('label');
-                const checkbox = document.createElement('input');
-                checkbox.type = 'checkbox';
-                checkbox.checked = activeFilters[column]?.includes(value) || false;
-                checkbox.value = value;
-                label.appendChild(checkbox);
-                label.appendChild(document.createTextNode(value));
-                dropdown.appendChild(label);
-            });
-
-            const buttonContainer = document.createElement('div');
-            buttonContainer.className = 'filter-buttons';
+            const th = event.target.parentElement;
+            th.appendChild(dropdown);
             
-            const applyButton = document.createElement('button');
-            applyButton.textContent = 'Apply';
-            applyButton.onclick = () => applyFilter(column, dropdown);
-            
-            const clearButton = document.createElement('button');
-            clearButton.textContent = 'Clear';
-            clearButton.onclick = () => clearFilter(column);
-            
-            buttonContainer.appendChild(clearButton);
-            buttonContainer.appendChild(applyButton);
-            dropdown.appendChild(buttonContainer);
-
-            const rect = element.getBoundingClientRect();
-            dropdown.style.top = `${rect.bottom + window.scrollY}px`;
-            dropdown.style.left = `${rect.left}px`;
-            document.body.appendChild(dropdown);
-
             document.addEventListener('click', function closeDropdown(e) {
-                if (!dropdown.contains(e.target) && e.target !== element) {
+                if (!dropdown.contains(e.target) && e.target !== event.target) {
                     dropdown.remove();
                     document.removeEventListener('click', closeDropdown);
                 }
@@ -1110,7 +504,7 @@
             } else {
                 delete activeFilters[column];
             }
-
+            
             const filteredProducts = getFilteredProducts();
             updateMetrics(filteredProducts);
             populateTable(filteredProducts);
@@ -1126,15 +520,129 @@
             if (dropdown) dropdown.remove();
         }
 
-        function showStatusMessage(message, isSuccess) {
-            const statusDiv = document.createElement('div');
-            statusDiv.className = `status-message ${isSuccess ? 'status-success' : 'status-error'}`;
-            statusDiv.textContent = message;
-            document.body.appendChild(statusDiv);
+        function clearAllFilters() {
+            activeFilters = {};
+            updateMetrics(products);
+            populateTable(products);
+        }
+
+        function editProduct(productId) {
+            const product = products.find(p => p.Product_ID === productId);
+            if (!product) return;
             
-            setTimeout(() => {
-                statusDiv.remove();
-            }, 3000);
+            document.getElementById('productId').value = product.Product_ID;
+            document.getElementById('description').value = product.Description;
+            document.getElementById('productFamily').value = product.Product_Family;
+            document.getElementById('unitPerProduct').value = product.Unit_Per_Product;
+            document.getElementById('wholesaleCost').value = product.Wholesale_Cost_AUD;
+            document.getElementById('rrp').value = product.RRP_AUD;
+            document.getElementById('productionDescription').value = product.Production_Description || '';
+            
+            const modal = document.getElementById('editModal');
+            modal.style.display = 'block';
+        }
+
+        document.querySelector('.close').onclick = function() {
+            document.getElementById('editModal').style.display = 'none';
+        }
+
+        window.onclick = function(event) {
+            const modal = document.getElementById('editModal');
+            if (event.target === modal) {
+                modal.style.display = 'none';
+            }
+        }
+
+        document.getElementById('editForm').onsubmit = async function(e) {
+            e.preventDefault();
+            
+            const updatedProduct = {
+                Product_ID: document.getElementById('productId').value,
+                Description: document.getElementById('description').value,
+                Product_Family: document.getElementById('productFamily').value,
+                Unit_Per_Product: parseInt(document.getElementById('unitPerProduct').value),
+                Wholesale_Cost_AUD: parseFloat(document.getElementById('wholesaleCost').value),
+                RRP_AUD: parseFloat(document.getElementById('rrp').value),
+                Production_Description: document.getElementById('productionDescription').value
+            };
+            
+            try {
+                const response = await fetch(`/api/products/${updatedProduct.Product_ID}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(updatedProduct)
+                });
+                
+                if (!response.ok) throw new Error('Failed to update product');
+                
+                const index = products.findIndex(p => p.Product_ID === updatedProduct.Product_ID);
+                if (index !== -1) {
+                    products[index] = updatedProduct;
+                }
+                
+                document.getElementById('editModal').style.display = 'none';
+                updateMetrics();
+                populateTable(getFilteredProducts());
+                
+            } catch (error) {
+                console.error('Error updating product:', error);
+                alert('Failed to update product. Please try again.');
+            }
+        }
+
+        function exportToExcel() {
+            const filteredProducts = getFilteredProducts();
+            const ws = XLSX.utils.json_to_sheet(filteredProducts);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Products");
+            XLSX.writeFile(wb, "products.xlsx");
+        }
+
+        function exportToPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            
+            const filteredProducts = getFilteredProducts();
+            const columns = [
+                "Product ID",
+                "Description",
+                "Product Family",
+                "Unit Per Product",
+                "Wholesale Cost",
+                "RRP",
+                "Production Description"
+            ];
+            
+            const rows = filteredProducts.map(product => [
+                product.Product_ID,
+                product.Description,
+                product.Product_Family,
+                product.Unit_Per_Product,
+                `$${parseFloat(product.Wholesale_Cost_AUD).toFixed(2)}`,
+                `$${parseFloat(product.RRP_AUD).toFixed(2)}`,
+                product.Production_Description || ''
+            ]);
+            
+            doc.autoTable({
+                head: [columns],
+                body: rows,
+                startY: 20,
+                margin: { top: 20 },
+                styles: { overflow: 'linebreak' },
+                columnStyles: {
+                    0: { cellWidth: 25 },
+                    1: { cellWidth: 40 },
+                    2: { cellWidth: 30 },
+                    3: { cellWidth: 20 },
+                    4: { cellWidth: 25 },
+                    5: { cellWidth: 25 },
+                    6: { cellWidth: 'auto' }
+                }
+            });
+            
+            doc.save("products.pdf");
         }
 
         // Initialize
