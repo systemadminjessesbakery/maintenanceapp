@@ -1050,7 +1050,7 @@
 
             const updates = {};
             const cells = editingRow.getElementsByTagName('td');
-            const requiredFields = ['STORE_NAME', 'REGION'];
+            const requiredFields = ['Store_Name', 'Region'];
             const missingFields = [];
 
             // Gather changes
@@ -1072,23 +1072,18 @@
                         if (newValue !== (originalData[column] ? 'TRUE' : 'FALSE')) {
                             updates[column] = newValue;
                         }
-                    } else if (cell.dataset.isOverride === 'true') {
-                        const select = cell.querySelector('select');
-                        newValue = select ? select.value : '';
-                        if (newValue !== originalData[column]) {
-                            updates[column] = newValue;
-                        }
                     } else {
                         const input = cell.querySelector('input');
                         newValue = input ? input.value.trim() : '';
                         
-                        // Check required fields
+                        // Check required fields with proper case sensitivity
                         if (requiredFields.includes(column) && !newValue) {
-                            missingFields.push(column.replace(/_/g, ' ').toLowerCase());
+                            missingFields.push(column.replace(/_/g, ' '));
                         }
                         
                         if (newValue !== originalData[column]) {
                             updates[column] = newValue;
+                            console.log(`Column ${column} changed from '${originalData[column]}' to '${newValue}'`);
                         }
                     }
                 }
@@ -1106,7 +1101,10 @@
                 return;
             }
 
+            console.log(`DEBUG: Saving updates for store ${storeId}:`, JSON.stringify(updates));
+
             try {
+                console.log(`Making PUT request to /api/stores/${storeId}`);
                 const response = await fetch(`/api/stores/${storeId}`, {
                     method: 'PUT',
                     headers: {
@@ -1115,10 +1113,28 @@
                     body: JSON.stringify(updates)
                 });
 
+                console.log(`Response status: ${response.status}`);
+                
                 if (!response.ok) {
-                    throw new Error(`Failed to save changes: ${response.statusText}`);
+                    let errorMessage = `Failed to save changes: ${response.statusText}`;
+                    let errorDetails = '';
+                    
+                    try {
+                        const errorData = await response.json();
+                        console.log('Error response data:', errorData);
+                        errorMessage = errorData.error || errorData.details || errorMessage;
+                        if (errorData.query) {
+                            errorDetails = `Error in query: ${errorData.query}`;
+                        }
+                    } catch (e) {
+                        console.log('Could not parse error response as JSON:', e);
+                    }
+                    
+                    throw new Error(errorMessage + (errorDetails ? ' - ' + errorDetails : ''));
                 }
 
+                const result = await response.json();
+                console.log("Update successful:", result);
                 showStatusMessage('Changes saved successfully', true);
                 await fetchData(); // Refresh the table
                 cancelEditing(); // Exit edit mode after successful save

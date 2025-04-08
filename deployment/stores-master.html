@@ -1074,7 +1074,7 @@
 
             const updates = {};
             const cells = editingRow.getElementsByTagName('td');
-            const requiredFields = ['Store_Name', 'Region']; 
+            const requiredFields = ['Store_Name', 'Region']; // Fix case to match actual column names
             const missingFields = [];
 
             // Gather changes
@@ -1100,7 +1100,7 @@
                         const input = cell.querySelector('input');
                         newValue = input ? input.value.trim() : '';
                         
-                        // Check required fields
+                        // Check required fields with proper case sensitivity
                         if (requiredFields.includes(column) && !newValue) {
                             missingFields.push(column.replace(/_/g, ' '));
                         }
