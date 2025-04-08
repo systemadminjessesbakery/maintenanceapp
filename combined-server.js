@@ -614,7 +614,12 @@ app.put('/api/stores/:storeId', async (req, res) => {
           request.input(key, sql.Bit, boolValue);
         } else {
           updateFields.push(`${key} = @${key}`);
-          request.input(key, sql.VarChar, value);
+          // Use NVarChar for text fields that may contain Unicode characters
+          if (['Store_Name', 'Region', 'State', 'Address', 'Supplier_Code'].includes(key)) {
+            request.input(key, sql.NVarChar, value);
+          } else {
+            request.input(key, sql.VarChar, value);
+          }
         }
       }
     });

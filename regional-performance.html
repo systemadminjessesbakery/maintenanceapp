@@ -24,7 +24,7 @@
         }
 
         .logo {
-            max-width: 120px;
+            max-width: 80px;
             height: auto;
             margin-bottom: 15px;
             display: inline-block;
@@ -1028,6 +1028,26 @@
 
         // Add auto-refresh functionality
         let autoRefreshInterval;
+        let lastRefreshAttempt = 0;
+        const MIN_REFRESH_INTERVAL = 30000; // Minimum 30 seconds between refreshes
+
+        async function refreshData() {
+            const now = Date.now();
+            if (now - lastRefreshAttempt < MIN_REFRESH_INTERVAL) {
+                console.log('Skipping refresh - too soon since last attempt');
+                return;
+            }
+            
+            lastRefreshAttempt = now;
+            console.log('Refreshing data...');
+            try {
+                await fetchRegionalData();
+                console.log('Data refresh successful');
+            } catch (error) {
+                console.error('Error during data refresh:', error);
+                // Don't stop auto-refresh on error, just log it
+            }
+        }
 
         function startAutoRefresh(intervalMinutes = 5) {
             // Clear any existing interval
@@ -1038,11 +1058,10 @@
             // Convert minutes to milliseconds
             const interval = intervalMinutes * 60 * 1000;
             
-            autoRefreshInterval = setInterval(async () => {
-                console.log('Auto-refreshing data...');
-                await fetchRegionalData();
-            }, interval);
+            // Initial refresh
+            refreshData();
             
+            autoRefreshInterval = setInterval(refreshData, interval);
             console.log(`Auto-refresh enabled. Data will refresh every ${intervalMinutes} minutes`);
         }
 
@@ -1070,17 +1089,22 @@
             document.getElementById('endDate').value = today.toISOString().split('T')[0];
             
             startAutoRefresh(5); // Refresh every 5 minutes
-            fetchRegionalData(); // Initial data load
         });
 
-        // Stop auto-refresh when page is hidden
+        // Handle page visibility changes
         document.addEventListener('visibilitychange', () => {
             if (document.hidden) {
                 stopAutoRefresh();
             } else {
+                // When page becomes visible again, refresh immediately and restart auto-refresh
+                refreshData();
                 startAutoRefresh(5);
-                fetchRegionalData(); // Refresh data when page becomes visible again
             }
+        });
+
+        // Add manual refresh button functionality
+        document.getElementById('refreshButton').addEventListener('click', () => {
+            refreshData();
         });
     </script>
 </body>
