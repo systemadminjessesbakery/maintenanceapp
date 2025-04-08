@@ -315,7 +315,7 @@
 <body>
     <div class="header">
         <div class="logo">
-            <img src="/images/logo.jpg" alt="Jesse's Bakery Logo">
+            <img src="images/logo.jpg" alt="Jesse's Bakery Logo">
         </div>
         <a href="index.html" class="back-button">
             <i class="fas fa-arrow-left"></i>
@@ -486,7 +486,7 @@
         
         let allData = [];
         let filteredData = [];
-        let filters = {
+        const filters = {
             week: new Set(),
             region: new Set(),
             product: new Set()
@@ -564,6 +564,7 @@
             filters.week.clear();
             filters.region.clear();
             filters.product.clear();
+            filteredData = [...allData];
             applyFilters();
         }
 
@@ -868,8 +869,7 @@
                 // Update data and display
                 allData = result.data;
                 clearFilters();
-                applyFilters();
-                updateChart(filteredData);
+                renderData(allData);
                 
                 return result.data;
             } catch (error) {

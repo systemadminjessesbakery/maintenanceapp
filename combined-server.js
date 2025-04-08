@@ -568,95 +568,67 @@ app.post('/api/stores', async (req, res) => {
 app.put('/api/stores/:storeId', async (req, res) => {
   const storeId = req.params.storeId;
   const updates = req.body;
-  logger.debug(`Received request to update store ID: ${storeId}, updates:`, updates);
-  
-  if (!poolConnected) {
-    return res.status(503).json({
-      error: 'Database not connected',
-      message: 'The database connection is not available'
-    });
-  }
-  
+
   try {
+    // Check database connection
+    if (!poolConnected) {
+      logger.error('Database connection not available');
+      return res.status(503).json({ error: 'Database connection not available' });
+    }
+
     // Validate store exists
-    const storeCheck = await pool.request()
-      .input('Store_ID', sql.VarChar(50), storeId)
-      .query('SELECT Store_ID FROM Stores_Master WHERE Store_ID = @Store_ID');
-        
-    if (storeCheck.recordset.length === 0) {
+    const storeExists = await pool.request()
+      .input('storeId', sql.VarChar, storeId)
+      .query('SELECT COUNT(*) as count FROM Stores_Master WHERE Store_ID = @storeId');
+
+    if (storeExists.recordset[0].count === 0) {
       return res.status(404).json({ error: 'Store not found' });
     }
 
-    // Validate required fields if they are being updated
-    if ('Store_Name' in updates && !updates.Store_Name) {
-      return res.status(400).json({ error: 'Store Name cannot be empty' });
-    }
-    if ('Region' in updates && !updates.Region) {
-      return res.status(400).json({ error: 'Region cannot be empty' });
+    // Validate required fields
+    if (!updates.Store_Name || !updates.Region) {
+      return res.status(400).json({ error: 'Store name and region are required' });
     }
 
-    const request = pool.request()
-      .input('Store_ID', sql.VarChar(50), storeId);
+    // Validate field lengths
+    if (updates.Store_Name.length > 100 || updates.Region.length > 50) {
+      return res.status(400).json({ error: 'Store name or region exceeds maximum length' });
+    }
 
-    // Build dynamic update query based on provided fields
+    // Build dynamic update query
     const updateFields = [];
-    const booleanFields = [
-      'SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 
-      'FRIDAY', 'SATURDAY', 'SPECIAL_FRIDAY', 'SPECIAL_SUNDAY'
-    ];
+    const request = pool.request().input('storeId', sql.VarChar, storeId);
 
-    for (const [key, value] of Object.entries(updates)) {
-      if (key === 'Store_ID') continue; // Skip Store_ID as it's the identifier
-
-      if (booleanFields.includes(key)) {
-        // Handle boolean fields
-        const boolValue = value === true || value === 'TRUE' || value === '1' || value === 1 ? 1 : 0;
-        request.input(key, sql.Bit, boolValue);
-        updateFields.push(`${key} = @${key}`);
-      } else if (value === null || value === undefined || value === '') {
-        // Handle null/empty values for non-required fields
-        if (key !== 'Store_Name' && key !== 'Region') {
-          request.input(key, sql.NVarChar(500), null);
+    Object.entries(updates).forEach(([key, value]) => {
+      if (key !== 'Store_ID') { // Don't update the ID
+        if (typeof value === 'boolean') {
           updateFields.push(`${key} = @${key}`);
+          request.input(key, sql.Bit, value ? 1 : 0);
+        } else {
+          updateFields.push(`${key} = @${key}`);
+          request.input(key, sql.VarChar, value);
         }
-      } else {
-        // Handle string and other fields
-        request.input(key, sql.NVarChar(500), value.toString().trim());
-        updateFields.push(`${key} = @${key}`);
       }
-    }
+    });
 
     if (updateFields.length === 0) {
       return res.status(400).json({ error: 'No valid fields to update' });
     }
 
-    // Add Updated_At to the update fields
-    updateFields.push('Updated_At = GETDATE()');
-
     const query = `
       UPDATE Stores_Master 
       SET ${updateFields.join(', ')}
-      OUTPUT INSERTED.*
-      WHERE Store_ID = @Store_ID;
+      WHERE Store_ID = @storeId;
+      
+      SELECT * FROM Stores_Master WHERE Store_ID = @storeId;
     `;
 
-    logger.debug('Executing update query:', query);
     const result = await request.query(query);
-    
+
     if (result.recordset.length > 0) {
-      logger.info(`Store ${storeId} updated successfully`);
       res.json(result.recordset[0]);
     } else {
-      // If no rows were returned but the update succeeded, fetch the updated store
-      const updatedStore = await pool.request()
-        .input('Store_ID', sql.VarChar(50), storeId)
-        .query('SELECT * FROM Stores_Master WHERE Store_ID = @Store_ID');
-      
-      if (updatedStore.recordset.length > 0) {
-        res.json(updatedStore.recordset[0]);
-      } else {
-        res.status(404).json({ error: 'Store not found after update' });
-      }
+      res.status(404).json({ error: 'Store not found after update' });
     }
   } catch (err) {
     logger.error(`Error updating store ${storeId}:`, err);
