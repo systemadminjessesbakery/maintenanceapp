@@ -381,12 +381,12 @@ app.post('/api/stores', async (req, res) => {
     });
   }
   
-  // Validate required fields
-  if (!store.Store_Name) {
-    return res.status(400).json({ error: 'Store Name is required' });
+  // Validate field lengths
+  if (store.Store_Name && store.Store_Name.length > 255) {
+    return res.status(400).json({ error: 'Store Name exceeds maximum length of 255 characters' });
   }
-  if (!store.Region) {
-    return res.status(400).json({ error: 'Region is required' });
+  if (store.Region && store.Region.length > 255) {
+    return res.status(400).json({ error: 'Region exceeds maximum length of 255 characters' });
   }
   
   try {
@@ -397,30 +397,52 @@ app.post('/api/stores', async (req, res) => {
     
     // Insert the new store
     const request = pool.request()
-      .input('Store_ID', sql.VarChar(50), storeId)
-      .input('Store_Name', sql.NVarChar(500), store.Store_Name)
-      .input('Region', sql.NVarChar(500), store.Region)
-      .input('State', sql.NVarChar(500), store.State || '')
-      .input('Active', sql.VarChar(50), store.Active || 'Active')
-      .input('Address', sql.NVarChar(500), store.Address || '')
-      .input('Supplier_Code', sql.NVarChar(500), store.Supplier_Code || '');
+      .input('Store_ID', sql.NVarChar(50), storeId)
+      .input('Store_Name', sql.NVarChar(255), store.Store_Name)
+      .input('Region', sql.NVarChar(255), store.Region)
+      .input('State', sql.NVarChar(50), store.State || null)
+      .input('Active', sql.NVarChar(50), store.Active || 'Active')
+      .input('Address', sql.NVarChar(255), store.Address || null)
+      .input('Supplier_Code', sql.NVarChar(50), store.Supplier_Code || null)
+      .input('Run_ID', sql.NVarChar(255), store.Run_ID || null)
+      .input('Shelf_Limit', sql.NVarChar(255), store.Shelf_Limit || null)
+      .input('Latitude', sql.NVarChar(255), store.Latitude || null)
+      .input('Longitude', sql.NVarChar(255), store.Longitude || null)
+      .input('INVOICED', sql.NVarChar(50), store.INVOICED || null)
+      .input('XERO_CODE', sql.NVarChar(50), store.XERO_CODE || null)
+      .input('XERO_CUSTOMERID', sql.NVarChar(50), store.XERO_CUSTOMERID || null);
     
-    // Add boolean fields
-    ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 
+    // Add boolean fields as nvarchar(50)
+    ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY',
      'SPECIAL_FRIDAY', 'SPECIAL_SUNDAY'].forEach(day => {
-      request.input(day, sql.Bit, store[day] === 'TRUE' ? 1 : 0);
+      request.input(day, sql.NVarChar(50), store[day] === 'TRUE' ? 'TRUE' : 'FALSE');
+    });
+    
+    // Add override fields
+    ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].forEach(day => {
+      request.input(`${day}_OVERRIDE`, sql.NVarChar(50), store[`${day}_OVERRIDE`] || null);
     });
     
     const query = `
       INSERT INTO Stores_Master (
         Store_ID, Store_Name, Region, State, Active, Address, Supplier_Code,
+        Run_ID, Shelf_Limit, Latitude, Longitude,
         SUNDAY, MONDAY, TUESDAY, WEDNESDAY, THURSDAY, FRIDAY, SATURDAY,
-        SPECIAL_FRIDAY, SPECIAL_SUNDAY, Created_At, Updated_At
+        SPECIAL_FRIDAY, SPECIAL_SUNDAY,
+        INVOICED, XERO_CODE, XERO_CUSTOMERID,
+        SUN_OVERRIDE, MON_OVERRIDE, TUE_OVERRIDE, WED_OVERRIDE,
+        THU_OVERRIDE, FRI_OVERRIDE, SAT_OVERRIDE,
+        Created_At, Updated_At
       )
       VALUES (
         @Store_ID, @Store_Name, @Region, @State, @Active, @Address, @Supplier_Code,
+        @Run_ID, @Shelf_Limit, @Latitude, @Longitude,
         @SUNDAY, @MONDAY, @TUESDAY, @WEDNESDAY, @THURSDAY, @FRIDAY, @SATURDAY,
-        @SPECIAL_FRIDAY, @SPECIAL_SUNDAY, GETDATE(), GETDATE()
+        @SPECIAL_FRIDAY, @SPECIAL_SUNDAY,
+        @INVOICED, @XERO_CODE, @XERO_CUSTOMERID,
+        @SUN_OVERRIDE, @MON_OVERRIDE, @TUE_OVERRIDE, @WED_OVERRIDE,
+        @THU_OVERRIDE, @FRI_OVERRIDE, @SAT_OVERRIDE,
+        GETDATE(), GETDATE()
       );
       
       SELECT * FROM Stores_Master WHERE Store_ID = @Store_ID;
@@ -442,7 +464,7 @@ app.post('/api/stores', async (req, res) => {
 app.put('/api/stores/:storeId', async (req, res) => {
   const storeId = req.params.storeId;
   const updates = req.body;
-  logger.debug(`Received request to update store ID: ${storeId}`);
+  logger.debug(`Received request to update store ID: ${storeId}`, updates);
   
   if (!poolConnected) {
     return res.status(503).json({
@@ -454,44 +476,47 @@ app.put('/api/stores/:storeId', async (req, res) => {
   try {
     // Validate store exists
     const storeCheck = await pool.request()
-      .input('Store_ID', sql.VarChar(50), storeId)
+      .input('Store_ID', sql.NVarChar(50), storeId)
       .query('SELECT Store_ID FROM Stores_Master WHERE Store_ID = @Store_ID');
         
     if (storeCheck.recordset.length === 0) {
       return res.status(404).json({ error: 'Store not found' });
     }
 
-    // Validate required fields
-    if (updates.Store_Name !== undefined && updates.Store_Name.trim() === '') {
-      return res.status(400).json({ error: 'Store Name cannot be empty' });
+    // Validate field lengths if they are being updated
+    if (updates.Store_Name !== undefined) {
+      if (updates.Store_Name.length > 255) {
+        return res.status(400).json({ error: 'Store Name exceeds maximum length of 255 characters' });
+      }
     }
-    if (updates.Region !== undefined && updates.Region.trim() === '') {
-      return res.status(400).json({ error: 'Region cannot be empty' });
-    }
-
-    // Validate field lengths
-    if (updates.Store_Name !== undefined && updates.Store_Name.length > 500) {
-      return res.status(400).json({ error: 'Store Name exceeds maximum length of 500 characters' });
-    }
-    if (updates.Region !== undefined && updates.Region.length > 500) {
-      return res.status(400).json({ error: 'Region exceeds maximum length of 500 characters' });
+    
+    if (updates.Region !== undefined) {
+      if (updates.Region.length > 255) {
+        return res.status(400).json({ error: 'Region exceeds maximum length of 255 characters' });
+      }
     }
 
     const request = pool.request()
-      .input('Store_ID', sql.VarChar(50), storeId);
+      .input('Store_ID', sql.NVarChar(50), storeId);
 
     // Build dynamic update query based on provided fields
     const updateFields = [];
     for (const [key, value] of Object.entries(updates)) {
       if (key === 'Store_ID') continue; // Skip Store_ID as it's the identifier
 
-      if (['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SPECIAL_FRIDAY', 'SPECIAL_SUNDAY'].includes(key)) {
-        // Handle boolean fields
-        request.input(key, sql.Bit, value === 'TRUE' ? 1 : 0);
+      // Handle all fields as nvarchar with appropriate lengths
+      if (['Store_Name', 'Region', 'Address', 'Run_ID', 'Shelf_Limit', 'Latitude', 'Longitude'].includes(key)) {
+        request.input(key, sql.NVarChar(255), value === null ? null : value.toString().trim());
         updateFields.push(`${key} = @${key}`);
-      } else {
-        // Handle other fields (Store_Name, Region, State, etc.)
-        request.input(key, sql.NVarChar(500), value.trim());
+      } else if (['State', 'Active', 'Supplier_Code', 'INVOICED', 'XERO_CODE', 'XERO_CUSTOMERID'].includes(key)) {
+        request.input(key, sql.NVarChar(50), value === null ? null : value.toString().trim());
+        updateFields.push(`${key} = @${key}`);
+      } else if (['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY',
+                 'SPECIAL_FRIDAY', 'SPECIAL_SUNDAY', 'SUN_OVERRIDE', 'MON_OVERRIDE', 'TUE_OVERRIDE',
+                 'WED_OVERRIDE', 'THU_OVERRIDE', 'FRI_OVERRIDE', 'SAT_OVERRIDE'].includes(key)) {
+        // Handle boolean fields as nvarchar(50)
+        const boolValue = (value || '').toString().toUpperCase() === 'TRUE' ? 'TRUE' : 'FALSE';
+        request.input(key, sql.NVarChar(50), boolValue);
         updateFields.push(`${key} = @${key}`);
       }
     }
@@ -511,6 +536,7 @@ app.put('/api/stores/:storeId', async (req, res) => {
 
     const result = await request.query(query);
     logger.info(`Store ${storeId} updated successfully`);
+    
     if (result.recordset.length > 0) {
       res.json(result.recordset[0]);
     } else {
@@ -520,7 +546,7 @@ app.put('/api/stores/:storeId', async (req, res) => {
     logger.error(`Error updating store ${storeId}:`, err);
     res.status(500).json({ 
       error: 'Error updating store',
-      details: err.message
+      details: err.message 
     });
   }
 });
