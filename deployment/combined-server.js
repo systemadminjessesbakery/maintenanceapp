@@ -474,47 +474,43 @@ app.put('/api/stores/:storeId', async (req, res) => {
   }
   
   try {
+    // Get schema info for proper type handling
+    const schemaResult = await pool.request()
+      .query(`
+        SELECT 
+          COLUMN_NAME, 
+          DATA_TYPE, 
+          CHARACTER_MAXIMUM_LENGTH
+        FROM 
+          INFORMATION_SCHEMA.COLUMNS 
+        WHERE 
+          TABLE_NAME = 'Stores_Master'
+      `);
+    
+    const typeMapping = {};
+    schemaResult.recordset.forEach(col => {
+      typeMapping[col.COLUMN_NAME] = {
+        type: col.DATA_TYPE,
+        length: col.CHARACTER_MAXIMUM_LENGTH
+      };
+    });
+    
     // Validate store exists
-    try {
-      const storeCheck = await pool.request()
-        .input('Store_ID', sql.NVarChar(50), storeId)
-        .query('SELECT Store_ID FROM Stores_Master WHERE Store_ID = @Store_ID');
-          
-      if (storeCheck.recordset.length === 0) {
-        return res.status(404).json({ error: 'Store not found' });
-      }
-      logger.debug(`Store ${storeId} found in database`);
-    } catch (checkErr) {
-      logger.error(`Error checking if store exists:`, checkErr);
-      return res.status(500).json({ 
-        error: 'Error checking if store exists',
-        details: checkErr.message 
-      });
-    }
-
-    // Validate field lengths if they are being updated
-    if (updates.Store_Name !== undefined) {
-      if (updates.Store_Name.length > 255) {
-        return res.status(400).json({ error: 'Store Name exceeds maximum length of 255 characters' });
-      }
+    const storeCheck = await pool.request()
+      .input('Store_ID', sql.NVarChar(50), storeId)
+      .query('SELECT Store_ID FROM Stores_Master WHERE Store_ID = @Store_ID');
+        
+    if (storeCheck.recordset.length === 0) {
+      return res.status(404).json({ error: 'Store not found' });
     }
     
-    if (updates.Region !== undefined) {
-      if (updates.Region.length > 255) {
-        return res.status(400).json({ error: 'Region exceeds maximum length of 255 characters' });
-      }
-    }
-
     const request = pool.request()
       .input('Store_ID', sql.NVarChar(50), storeId);
 
     // Build dynamic update query based on provided fields
     const updateFields = [];
     
-    // Log all the keys and values we're trying to update
-    logger.debug(`Fields to update for store ${storeId}:`, Object.keys(updates));
-    
-    // Define explicit whitelist of allowed columns
+    // Define whitelist of allowed columns
     const allowedFields = new Set([
       'Store_Name', 'Region', 'State', 'Active', 'Address', 'Supplier_Code', 'Run_ID', 
       'Shelf_Limit', 'Latitude', 'Longitude', 'INVOICED', 'XERO_CODE', 'XERO_CUSTOMERID',
@@ -524,66 +520,52 @@ app.put('/api/stores/:storeId', async (req, res) => {
     ]);
     
     for (const [key, value] of Object.entries(updates)) {
-      try {
-        if (key === 'Store_ID') {
-          logger.debug(`Skipping Store_ID as it's an identifier`);
-          continue; // Skip Store_ID as it's the identifier
-        }
-
-        // Skip any columns that aren't in our allowed list
-        if (!allowedFields.has(key)) {
-          logger.warn(`Skipping invalid column: ${key}`);
-          continue;
-        }
-        
-        logger.debug(`Processing key: ${key}, value: ${value}, type: ${typeof value}`);
-
-        // Handle all fields as nvarchar with appropriate lengths
-        if (['Store_Name', 'Region', 'Address', 'Run_ID', 'Shelf_Limit', 'Latitude', 'Longitude'].includes(key)) {
-          let safeValue = value;
-          if (value === undefined || value === null) {
-            safeValue = null;
+      if (key === 'Store_ID' || !allowedFields.has(key)) continue;
+      
+      const fieldInfo = typeMapping[key] || { type: 'nvarchar', length: 255 };
+      let sqlType;
+      let processedValue = value;
+      
+      // Handle each type based on database schema
+      switch(fieldInfo.type.toLowerCase()) {
+        case 'nvarchar':
+        case 'varchar':
+          sqlType = fieldInfo.type.toLowerCase() === 'nvarchar' ? 
+                  sql.NVarChar(fieldInfo.length === -1 ? 'max' : fieldInfo.length) : 
+                  sql.VarChar(fieldInfo.length === -1 ? 'max' : fieldInfo.length);
+          
+          if (value === null || value === undefined) {
+            processedValue = null;
           } else if (typeof value !== 'string') {
-            safeValue = String(value).trim();
-          } else {
-            safeValue = value.trim();
+            processedValue = String(value);
           }
-          logger.debug(`Adding ${key} as NVarChar(255): ${safeValue}`);
-          request.input(key, sql.NVarChar(255), safeValue);
-          updateFields.push(`${key} = @${key}`);
-        } else if (['State', 'Active', 'Supplier_Code', 'INVOICED', 'XERO_CODE', 'XERO_CUSTOMERID'].includes(key)) {
-          let safeValue = value;
-          if (value === undefined || value === null) {
-            safeValue = null;
-          } else if (typeof value !== 'string') {
-            safeValue = String(value).trim();
-          } else {
-            safeValue = value.trim();
-          }
-          logger.debug(`Adding ${key} as NVarChar(50): ${safeValue}`);
-          request.input(key, sql.NVarChar(50), safeValue);
-          updateFields.push(`${key} = @${key}`);
-        } else if (['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY',
-                   'SPECIAL_FRIDAY', 'SPECIAL_SUNDAY', 'SUN_OVERRIDE', 'MON_OVERRIDE', 'TUE_OVERRIDE',
-                   'WED_OVERRIDE', 'THU_OVERRIDE', 'FRI_OVERRIDE', 'SAT_OVERRIDE'].includes(key)) {
-          // Handle boolean fields as nvarchar(50) - match the database type
-          let boolValue;
-          if (value === undefined || value === null) {
-            boolValue = null;
+          break;
+          
+        case 'bit':
+          sqlType = sql.Bit;
+          if (value === null || value === undefined) {
+            processedValue = null;
           } else if (typeof value === 'boolean') {
-            boolValue = value ? 'TRUE' : 'FALSE';
+            processedValue = value ? 1 : 0;
+          } else if (typeof value === 'string') {
+            const normalized = value.toUpperCase().trim();
+            processedValue = (normalized === 'TRUE' || normalized === '1' || normalized === 'YES') ? 1 : 0;
           } else {
-            const strValue = String(value).toUpperCase();
-            boolValue = (strValue === 'TRUE' || strValue === '1' || strValue === 'YES') ? 'TRUE' : 'FALSE';
+            processedValue = value ? 1 : 0;
           }
-          logger.debug(`Adding ${key} as NVarChar(50): ${boolValue}`);
-          request.input(key, sql.NVarChar(50), boolValue);
-          updateFields.push(`${key} = @${key}`);
-        }
-      } catch (fieldErr) {
-        logger.error(`Error processing field ${key}:`, fieldErr);
-        // Continue with other fields instead of failing the whole request
+          break;
+          
+        default:
+          sqlType = sql.NVarChar(fieldInfo.length === -1 ? 'max' : fieldInfo.length);
+          if (value === null || value === undefined) {
+            processedValue = null;
+          } else if (typeof value !== 'string') {
+            processedValue = String(value);
+          }
       }
+      
+      request.input(key, sqlType, processedValue);
+      updateFields.push(`${key} = @${key}`);
     }
 
     if (updateFields.length === 0) {
@@ -599,80 +581,21 @@ app.put('/api/stores/:storeId', async (req, res) => {
       
       SELECT * FROM Stores_Master WHERE Store_ID = @Store_ID;
     `;
-
-    logger.debug(`Update query for store ${storeId}: ${query}`);
     
-    try {
-      // Debugging SQL request object and inputs
-      const inputs = request.parameters;
-      const inputDetails = {};
-      
-      for (const key in inputs) {
-        if (inputs.hasOwnProperty(key)) {
-          inputDetails[key] = {
-            type: inputs[key].type.name,
-            value: inputs[key].value
-          };
-        }
-      }
-      
-      logger.debug(`SQL request inputs: ${JSON.stringify(inputDetails)}`);
-      
-      // !!! CRITICAL ERROR LOGGING FOR STORES MASTER DEBUGGING !!!
-      logger.info(`=== ATTEMPTING STORE UPDATE FOR ${storeId} ===`);
-      logger.info(`QUERY: UPDATE Stores_Master SET ${updateFields.join(', ')} WHERE Store_ID = ${storeId}`);
-      
-      const result = await request.query(query);
-      logger.info(`Store ${storeId} updated successfully`);
-      
-      if (result.recordset && result.recordset.length > 0) {
-        res.json(result.recordset[0]);
-      } else {
-        res.json({ message: 'Store updated successfully' });
-      }
-    } catch (sqlErr) {
-      // !!! CRITICAL ERROR LOGGING FOR STORES MASTER DEBUGGING !!!
-      logger.error(`=== SQL ERROR UPDATING STORE ${storeId} ===`);
-      logger.error(`EXACT SQL ERROR: ${sqlErr.message}`);
-      logger.error(`SQL STATE: ${sqlErr.state}, CLASS: ${sqlErr.class}`);
-      logger.error(`ERROR STACK: ${sqlErr.stack}`);
-      logger.error(`SQL error number: ${sqlErr.number}, state: ${sqlErr.state}, class: ${sqlErr.class}`);
-      
-      // Handle specific SQL errors
-      if (sqlErr.number === 2627) {
-        return res.status(409).json({ 
-          error: 'Unique constraint violation', 
-          details: 'A record with this identifier already exists'
-        });
-      } else if (sqlErr.number === 547) {
-        return res.status(409).json({ 
-          error: 'Foreign key constraint violation', 
-          details: 'Referenced record does not exist'
-        });
-      } else if (sqlErr.number === 515) {
-        return res.status(400).json({ 
-          error: 'Required field missing', 
-          details: 'A required field was not provided'
-        });
-      } else if (sqlErr.number === 8152) {
-        return res.status(400).json({ 
-          error: 'String data truncation', 
-          details: 'A field value exceeds the maximum allowed length'
-        });
-      }
-      
-      return res.status(500).json({ 
-        error: 'SQL execution failed', 
-        details: sqlErr.message,
-        sqlErrorNumber: sqlErr.number,
-        query: updateFields.join(', ')
-      });
+    const result = await request.query(query);
+    logger.info(`Store ${storeId} updated successfully`);
+    
+    if (result.recordset && result.recordset.length > 0) {
+      res.json(result.recordset[0]);
+    } else {
+      res.json({ message: 'Store updated successfully' });
     }
   } catch (err) {
     logger.error(`Error updating store ${storeId}:`, err);
     res.status(500).json({ 
       error: 'Error updating store',
-      details: err.message 
+      details: err.message,
+      stack: err.stack
     });
   }
 });
@@ -711,6 +634,218 @@ app.delete('/api/stores/:storeId', async (req, res) => {
     res.status(500).json({ 
       error: 'Error deleting store',
       details: err.message
+    });
+  }
+});
+
+// Add a diagnostic endpoint for store updates
+app.post('/api/stores/:storeId/diagnostic-update', async (req, res) => {
+  const storeId = req.params.storeId;
+  const updates = req.body;
+  logger.info(`=== DIAGNOSTIC UPDATE FOR STORE ${storeId} ===`);
+  logger.info(`Update payload: ${JSON.stringify(updates)}`);
+  
+  if (!poolConnected) {
+    return res.status(503).json({
+      error: 'Database not connected',
+      message: 'The database connection is not available'
+    });
+  }
+  
+  try {
+    // Get DB schema info for Stores_Master
+    const schemaResult = await pool.request()
+      .query(`
+        SELECT 
+          COLUMN_NAME, 
+          DATA_TYPE, 
+          CHARACTER_MAXIMUM_LENGTH
+        FROM 
+          INFORMATION_SCHEMA.COLUMNS 
+        WHERE 
+          TABLE_NAME = 'Stores_Master'
+        ORDER BY 
+          ORDINAL_POSITION
+      `);
+    
+    const schemaInfo = schemaResult.recordset;
+    logger.info(`Table schema: ${JSON.stringify(schemaInfo)}`);
+    
+    // Get current store data
+    const storeResult = await pool.request()
+      .input('Store_ID', sql.NVarChar(50), storeId)
+      .query('SELECT * FROM Stores_Master WHERE Store_ID = @Store_ID');
+    
+    if (storeResult.recordset.length === 0) {
+      return res.status(404).json({ error: 'Store not found' });
+    }
+    
+    const store = storeResult.recordset[0];
+    logger.info(`Current store data: ${JSON.stringify(store)}`);
+    
+    // Try simplest possible update with single field
+    const testField = 'Updated_At';
+    const testValue = new Date().toISOString();
+    
+    try {
+      const simpleResult = await pool.request()
+        .input('Store_ID', sql.NVarChar(50), storeId)
+        .query(`
+          UPDATE Stores_Master 
+          SET ${testField} = GETDATE()
+          WHERE Store_ID = @Store_ID;
+          
+          SELECT * FROM Stores_Master WHERE Store_ID = @Store_ID;
+        `);
+      
+      logger.info(`Simple timestamp update successful`);
+      
+      // Now try updating with provided fields
+      const request = pool.request()
+        .input('Store_ID', sql.NVarChar(50), storeId);
+      
+      const updateFields = [];
+      const typeMapping = {};
+      
+      // Build type mapping from schema
+      schemaInfo.forEach(col => {
+        typeMapping[col.COLUMN_NAME] = {
+          type: col.DATA_TYPE,
+          length: col.CHARACTER_MAXIMUM_LENGTH
+        };
+      });
+      
+      // Process each field with exact schema type matching
+      for (const [key, value] of Object.entries(updates)) {
+        if (key === 'Store_ID' || !typeMapping[key]) continue;
+        
+        const fieldInfo = typeMapping[key];
+        logger.info(`Processing field ${key} with type ${fieldInfo.type}, length ${fieldInfo.length}`);
+        
+        let sqlType;
+        let processedValue = value;
+        
+        // Match SQL type exactly based on schema
+        switch(fieldInfo.type.toLowerCase()) {
+          case 'nvarchar':
+          case 'varchar':
+            sqlType = fieldInfo.type === 'nvarchar' ? 
+                     sql.NVarChar(fieldInfo.length === -1 ? 'max' : fieldInfo.length) : 
+                     sql.VarChar(fieldInfo.length === -1 ? 'max' : fieldInfo.length);
+            
+            // Handle null and string conversion carefully
+            if (value === null || value === undefined) {
+              processedValue = null;
+            } else if (typeof value !== 'string') {
+              processedValue = String(value);
+            }
+            break;
+            
+          case 'bit':
+            sqlType = sql.Bit;
+            // Convert boolean-like values to bit
+            if (value === null || value === undefined) {
+              processedValue = null;
+            } else if (typeof value === 'boolean') {
+              processedValue = value ? 1 : 0;
+            } else if (typeof value === 'string') {
+              const normalized = value.toUpperCase().trim();
+              processedValue = (normalized === 'TRUE' || normalized === '1' || normalized === 'YES') ? 1 : 0;
+            } else {
+              processedValue = value ? 1 : 0;
+            }
+            break;
+            
+          case 'datetime':
+          case 'datetime2':
+            sqlType = sql.DateTime2;
+            if (value === null || value === undefined) {
+              processedValue = null;
+            } else if (value instanceof Date) {
+              processedValue = value;
+            } else if (typeof value === 'string') {
+              try {
+                processedValue = new Date(value);
+              } catch (e) {
+                processedValue = null;
+              }
+            } else {
+              processedValue = null;
+            }
+            break;
+            
+          default:
+            // For other types, use generic conversion
+            sqlType = sql.NVarChar(fieldInfo.length === -1 ? 'max' : fieldInfo.length);
+            if (value === null || value === undefined) {
+              processedValue = null;
+            } else if (typeof value !== 'string') {
+              processedValue = String(value);
+            }
+        }
+        
+        // Add parameter with exact type from schema
+        logger.info(`Adding parameter ${key} with value: ${processedValue}, SQL type: ${sqlType.name}`);
+        request.input(key, sqlType, processedValue);
+        updateFields.push(`${key} = @${key}`);
+      }
+      
+      if (updateFields.length === 0) {
+        return res.status(400).json({ 
+          success: true,
+          message: 'Simple timestamp update successful, but no valid fields in payload to update',
+          timestamp: simpleResult.recordset[0]
+        });
+      }
+      
+      const updateQuery = `
+        UPDATE Stores_Master 
+        SET ${updateFields.join(', ')}
+        WHERE Store_ID = @Store_ID;
+        
+        SELECT * FROM Stores_Master WHERE Store_ID = @Store_ID;
+      `;
+      
+      logger.info(`Diagnostic update query: ${updateQuery}`);
+      
+      const result = await request.query(updateQuery);
+      
+      res.json({
+        success: true,
+        message: 'Diagnostic update successful',
+        updatedFields: updateFields,
+        data: result.recordset[0]
+      });
+    } catch (sqlErr) {
+      logger.error(`=== DIAGNOSTIC SQL ERROR ===`);
+      logger.error(`Message: ${sqlErr.message}`);
+      logger.error(`Number: ${sqlErr.number}, State: ${sqlErr.state}`);
+      logger.error(`Line Number: ${sqlErr.lineNumber}`);
+      logger.error(`Class: ${sqlErr.class}`);
+      logger.error(`Procedure: ${sqlErr.procName || 'N/A'}`);
+      logger.error(`Stack: ${sqlErr.stack}`);
+      
+      return res.status(500).json({ 
+        success: false,
+        error: 'SQL execution failed',
+        sqlError: {
+          message: sqlErr.message,
+          number: sqlErr.number,
+          state: sqlErr.state,
+          lineNumber: sqlErr.lineNumber,
+          class: sqlErr.class,
+          procedure: sqlErr.procName
+        },
+        query: updateFields?.join(', ') || 'No update fields'
+      });
+    }
+  } catch (err) {
+    logger.error(`Error in diagnostic update for store ${storeId}:`, err);
+    res.status(500).json({ 
+      success: false,
+      error: 'Error in diagnostic update',
+      details: err.message,
+      stack: err.stack
     });
   }
 });
