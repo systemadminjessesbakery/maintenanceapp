@@ -275,42 +275,43 @@ app.get('/api/stores', async (req, res) => {
     }
 });
 
-// Update store endpoint
-app.post('/api/stores/update', async (req, res) => {
-    const store = req.body;
+// Update store endpoint (PUT)
+app.put('/api/stores/:storeId', async (req, res) => {
+    const storeId = req.params.storeId;
+    const updates = req.body;
     try {
-        await pool.request()
-            .input('Store_ID', sql.VarChar(50), store.Store_ID)
-            .input('Store_Name', sql.VarChar(255), store.Store_Name)
-            .input('Address', sql.VarChar(500), store.Address)
-            .input('Region', sql.VarChar(100), store.Region)
-            .input('State', sql.VarChar(50), store.State)
-            .input('SUNDAY', sql.Bit, store.SUNDAY === 'TRUE' ? 1 : 0)
-            .input('MONDAY', sql.Bit, store.MONDAY === 'TRUE' ? 1 : 0)
-            .input('TUESDAY', sql.Bit, store.TUESDAY === 'TRUE' ? 1 : 0)
-            .input('WEDNESDAY', sql.Bit, store.WEDNESDAY === 'TRUE' ? 1 : 0)
-            .input('THURSDAY', sql.Bit, store.THURSDAY === 'TRUE' ? 1 : 0)
-            .input('FRIDAY', sql.Bit, store.FRIDAY === 'TRUE' ? 1 : 0)
-            .input('SATURDAY', sql.Bit, store.SATURDAY === 'TRUE' ? 1 : 0)
-            .input('SPECIAL_FRIDAY', sql.Bit, store.SPECIAL_FRIDAY === 'TRUE' ? 1 : 0)
-            .input('SPECIAL_SUNDAY', sql.Bit, store.SPECIAL_SUNDAY === 'TRUE' ? 1 : 0)
-            .query(`
-                UPDATE Stores_Master 
-                SET Store_Name = @Store_Name,
-                    Address = @Address,
-                    Region = @Region,
-                    State = @State,
-                    SUNDAY = @SUNDAY,
-                    MONDAY = @MONDAY,
-                    TUESDAY = @TUESDAY,
-                    WEDNESDAY = @WEDNESDAY,
-                    THURSDAY = @THURSDAY,
-                    FRIDAY = @FRIDAY,
-                    SATURDAY = @SATURDAY,
-                    SPECIAL_FRIDAY = @SPECIAL_FRIDAY,
-                    SPECIAL_SUNDAY = @SPECIAL_SUNDAY
-                WHERE Store_ID = @Store_ID
-            `);
+        const request = pool.request()
+            .input('Store_ID', sql.VarChar(50), storeId);
+
+        // Build dynamic update query based on provided fields
+        const updateFields = [];
+        for (const [key, value] of Object.entries(updates)) {
+            if (key.endsWith('_OVERRIDE')) {
+                // Handle override fields
+                request.input(key, sql.VarChar(100), value);
+                updateFields.push(`${key} = @${key}`);
+            } else if (['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SPECIAL_FRIDAY', 'SPECIAL_SUNDAY'].includes(key)) {
+                // Handle boolean fields
+                request.input(key, sql.Bit, value === 'TRUE' ? 1 : 0);
+                updateFields.push(`${key} = @${key}`);
+            } else {
+                // Handle other fields
+                request.input(key, sql.VarChar(500), value);
+                updateFields.push(`${key} = @${key}`);
+            }
+        }
+
+        if (updateFields.length === 0) {
+            return res.status(400).json({ error: 'No valid fields to update' });
+        }
+
+        const query = `
+            UPDATE Stores_Master 
+            SET ${updateFields.join(', ')}
+            WHERE Store_ID = @Store_ID
+        `;
+
+        await request.query(query);
         res.json({ success: true });
     } catch (err) {
         console.error('Error updating store:', err);
