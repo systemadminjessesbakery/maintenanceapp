@@ -464,7 +464,7 @@ app.post('/api/stores', async (req, res) => {
 app.put('/api/stores/:storeId', async (req, res) => {
   const storeId = req.params.storeId;
   const updates = req.body;
-  logger.debug(`Update payload for store ${storeId}:`, updates);
+  logger.debug(`Update payload for store ${storeId}:`, JSON.stringify(updates));
   
   if (!poolConnected) {
     return res.status(503).json({
@@ -475,12 +475,21 @@ app.put('/api/stores/:storeId', async (req, res) => {
   
   try {
     // Validate store exists
-    const storeCheck = await pool.request()
-      .input('Store_ID', sql.NVarChar(50), storeId)
-      .query('SELECT Store_ID FROM Stores_Master WHERE Store_ID = @Store_ID');
-        
-    if (storeCheck.recordset.length === 0) {
-      return res.status(404).json({ error: 'Store not found' });
+    try {
+      const storeCheck = await pool.request()
+        .input('Store_ID', sql.NVarChar(50), storeId)
+        .query('SELECT Store_ID FROM Stores_Master WHERE Store_ID = @Store_ID');
+          
+      if (storeCheck.recordset.length === 0) {
+        return res.status(404).json({ error: 'Store not found' });
+      }
+      logger.debug(`Store ${storeId} found in database`);
+    } catch (checkErr) {
+      logger.error(`Error checking if store exists:`, checkErr);
+      return res.status(500).json({ 
+        error: 'Error checking if store exists',
+        details: checkErr.message 
+      });
     }
 
     // Validate field lengths if they are being updated
@@ -581,6 +590,7 @@ app.put('/api/stores/:storeId', async (req, res) => {
       return res.status(400).json({ error: 'No valid fields to update' });
     }
 
+    // Build the final SQL query
     const query = `
       UPDATE Stores_Master 
       SET ${updateFields.join(', ')},
@@ -593,6 +603,21 @@ app.put('/api/stores/:storeId', async (req, res) => {
     logger.debug(`Update query for store ${storeId}: ${query}`);
     
     try {
+      // Debugging SQL request object and inputs
+      const inputs = request.parameters;
+      const inputDetails = {};
+      
+      for (const key in inputs) {
+        if (inputs.hasOwnProperty(key)) {
+          inputDetails[key] = {
+            type: inputs[key].type.name,
+            value: inputs[key].value
+          };
+        }
+      }
+      
+      logger.debug(`SQL request inputs: ${JSON.stringify(inputDetails)}`);
+      
       const result = await request.query(query);
       logger.info(`Store ${storeId} updated successfully`);
       
@@ -603,9 +628,35 @@ app.put('/api/stores/:storeId', async (req, res) => {
       }
     } catch (sqlErr) {
       logger.error(`SQL execution failed for store ${storeId}:`, sqlErr);
+      logger.error(`SQL error number: ${sqlErr.number}, state: ${sqlErr.state}, class: ${sqlErr.class}`);
+      
+      // Handle specific SQL errors
+      if (sqlErr.number === 2627) {
+        return res.status(409).json({ 
+          error: 'Unique constraint violation', 
+          details: 'A record with this identifier already exists'
+        });
+      } else if (sqlErr.number === 547) {
+        return res.status(409).json({ 
+          error: 'Foreign key constraint violation', 
+          details: 'Referenced record does not exist'
+        });
+      } else if (sqlErr.number === 515) {
+        return res.status(400).json({ 
+          error: 'Required field missing', 
+          details: 'A required field was not provided'
+        });
+      } else if (sqlErr.number === 8152) {
+        return res.status(400).json({ 
+          error: 'String data truncation', 
+          details: 'A field value exceeds the maximum allowed length'
+        });
+      }
+      
       return res.status(500).json({ 
         error: 'SQL execution failed', 
         details: sqlErr.message,
+        sqlErrorNumber: sqlErr.number,
         query: updateFields.join(', ')
       });
     }

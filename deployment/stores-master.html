@@ -34,12 +34,32 @@
             background-color: white;
             border-radius: 8px;
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            position: relative;
+        }
+        .back-button {
+            position: absolute;
+            left: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: #4CAF50;
+            cursor: pointer;
+            font-size: 1.2rem;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            text-decoration: none;
+        }
+        .back-button:hover {
+            color: #45a049;
+        }
+        .logo-container {
+            margin-bottom: 15px;
         }
         .logo {
             max-width: 50px;
             height: auto;
-            margin: 10px;
-            display: block;
         }
         .title-container {
             text-align: center;
@@ -461,10 +481,12 @@
 <body>
     <div class="container">
         <div class="header">
-            <button class="back-button btn" onclick="window.location.href='/'">
+            <a href="/" class="back-button">
                 <i class="fas fa-arrow-left"></i> Back to Menu
-            </button>
-            <img src="/logo" alt="Jesse's Bakery Logo" class="logo">
+            </a>
+            <div class="logo-container">
+                <img src="/logo" alt="Jesse's Bakery Logo" class="logo">
+            </div>
             <div class="title-container">
                 <h1 class="main-title">Stores Master Editor</h1>
                 <p class="subtitle">Manage store information and settings</p>
@@ -1042,7 +1064,7 @@
 
             const updates = {};
             const cells = editingRow.getElementsByTagName('td');
-            const requiredFields = ['Store_Name', 'Region'];
+            const requiredFields = ['Store_Name', 'Region']; 
             const missingFields = [];
 
             // Gather changes
@@ -1068,13 +1090,14 @@
                         const input = cell.querySelector('input');
                         newValue = input ? input.value.trim() : '';
                         
-                        // Check required fields with correct casing
+                        // Check required fields
                         if (requiredFields.includes(column) && !newValue) {
                             missingFields.push(column.replace(/_/g, ' '));
                         }
                         
                         if (newValue !== originalData[column]) {
                             updates[column] = newValue;
+                            console.log(`Column ${column} changed from '${originalData[column]}' to '${newValue}'`);
                         }
                     }
                 }
@@ -1092,7 +1115,10 @@
                 return;
             }
 
+            console.log(`DEBUG: Saving updates for store ${storeId}:`, JSON.stringify(updates));
+
             try {
+                console.log(`Making PUT request to /api/stores/${storeId}`);
                 const response = await fetch(`/api/stores/${storeId}`, {
                     method: 'PUT',
                     headers: {
@@ -1101,11 +1127,28 @@
                     body: JSON.stringify(updates)
                 });
 
+                console.log(`Response status: ${response.status}`);
+                
                 if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.error || errorData.details || 'Failed to save changes');
+                    let errorMessage = `Failed to save changes: ${response.statusText}`;
+                    let errorDetails = '';
+                    
+                    try {
+                        const errorData = await response.json();
+                        console.log('Error response data:', errorData);
+                        errorMessage = errorData.error || errorData.details || errorMessage;
+                        if (errorData.query) {
+                            errorDetails = `Error in query: ${errorData.query}`;
+                        }
+                    } catch (e) {
+                        console.log('Could not parse error response as JSON:', e);
+                    }
+                    
+                    throw new Error(errorMessage + (errorDetails ? ' - ' + errorDetails : ''));
                 }
 
+                const result = await response.json();
+                console.log("Update successful:", result);
                 showStatusMessage('Changes saved successfully', true);
                 await fetchData(); // Refresh the table
                 cancelEditing(); // Exit edit mode after successful save
