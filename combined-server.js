@@ -180,91 +180,43 @@ app.get('/api/regional-performance', async (req, res) => {
   }
   
   try {
-    const result = await pool.request()
-      .query(`
-        WITH DateInfo AS (
-          SELECT 
-            GETDATE() as CurrentDate,
-            DATEADD(day, 
-              -(DATEPART(weekday, GETDATE()) + (CASE WHEN DATEPART(weekday, GETDATE()) = 7 THEN 7 ELSE 0 END)), 
-              CAST(GETDATE() AS DATE)
-            ) as LastSaturday,
-            DATEADD(day, -6,
-              DATEADD(day, 
-                -(DATEPART(weekday, GETDATE()) + (CASE WHEN DATEPART(weekday, GETDATE()) = 7 THEN 7 ELSE 0 END)), 
-                CAST(GETDATE() AS DATE)
-              )
-            ) as LastWeekSunday
-        ),
-        WeekRanges AS (
-          SELECT
-            LastSaturday,
-            LastWeekSunday,
-            DATEADD(day, -7, LastWeekSunday) as PreviousWeekSunday,
-            DATEADD(day, -14, LastWeekSunday) as TwoWeeksAgoSunday,
-            DATEADD(day, -7, LastSaturday) as PreviousWeekSaturday,
-            DATEADD(day, -14, LastSaturday) as TwoWeeksAgoSaturday
-          FROM DateInfo
-        ),
-        WeeklySales AS (
-          SELECT 
-            DATEADD(day, 
-              -(DATEPART(weekday, Transaction_Date) - 1), 
-              CAST(Transaction_Date AS DATE)
-            ) AS Week_Start,
-            DATEADD(day, 
-              7-(DATEPART(weekday, Transaction_Date)), 
-              CAST(Transaction_Date AS DATE)
-            ) AS Week_End,
-            CONVERT(varchar, DATEADD(day, 
-              -(DATEPART(weekday, Transaction_Date) - 1), 
-              CAST(Transaction_Date AS DATE)
-            ), 23) + ' - ' + 
-            CONVERT(varchar, DATEADD(day, 
-              7-(DATEPART(weekday, Transaction_Date)), 
-              CAST(Transaction_Date AS DATE)
-            ), 23) AS Week_Label,
-            Location AS Region,
-            Description AS Product_Description,
-            DATEPART(weekday, Transaction_Date) AS DayOfWeek,
-            SUM(Quantity) AS Daily_Quantity,
-            Transaction_Date
-          FROM dbo.Combined_Sales_Data_Final WITH (NOLOCK)
-          WHERE Location IS NOT NULL
-            AND Transaction_Date >= DATEADD(day, -21, GETDATE())
-          GROUP BY 
-            Transaction_Date,
-            DATEADD(day, -(DATEPART(weekday, Transaction_Date) - 1), CAST(Transaction_Date AS DATE)),
-            DATEADD(day, 7-(DATEPART(weekday, Transaction_Date)), CAST(Transaction_Date AS DATE)),
-            Location,
-            Description,
-            DATEPART(weekday, Transaction_Date)
-        )
-        SELECT 
-          Week_Label,
-          Region,
-          Product_Description,
-          SUM(CASE WHEN DayOfWeek = 1 THEN Daily_Quantity ELSE 0 END) AS Sunday,
-          SUM(CASE WHEN DayOfWeek = 2 THEN Daily_Quantity ELSE 0 END) AS Monday,
-          SUM(CASE WHEN DayOfWeek = 3 THEN Daily_Quantity ELSE 0 END) AS Tuesday,
-          SUM(CASE WHEN DayOfWeek = 4 THEN Daily_Quantity ELSE 0 END) AS Wednesday,
-          SUM(CASE WHEN DayOfWeek = 5 THEN Daily_Quantity ELSE 0 END) AS Thursday,
-          SUM(CASE WHEN DayOfWeek = 6 THEN Daily_Quantity ELSE 0 END) AS Friday,
-          SUM(CASE WHEN DayOfWeek = 7 THEN Daily_Quantity ELSE 0 END) AS Saturday,
-          SUM(Daily_Quantity) AS Total_Week_Quantity
-        FROM WeeklySales ws
-        CROSS JOIN WeekRanges wr
-        WHERE Transaction_Date <= wr.LastSaturday
-          AND Transaction_Date >= wr.TwoWeeksAgoSunday
-        GROUP BY Week_Label, Region, Product_Description, Week_Start, Week_End
-        ORDER BY Week_End DESC, Region, Product_Description;
-      `);
+    // Extract date parameters (same as actual-sales endpoint)
+    const startDate = req.query.start || null;
+    const endDate = req.query.end || null;
+    
+    // Default to 30 days if no date range provided
+    const defaultStartDate = new Date();
+    defaultStartDate.setDate(defaultStartDate.getDate() - 30);
+    const defaultEndDate = new Date();
+    
+    // Build the query with date parameters
+    const request = pool.request();
+    
+    if (startDate) {
+      request.input('StartDate', sql.Date, new Date(startDate));
+    } else {
+      request.input('StartDate', sql.Date, defaultStartDate);
+    }
+    
+    if (endDate) {
+      request.input('EndDate', sql.Date, new Date(endDate));
+    } else {
+      request.input('EndDate', sql.Date, defaultEndDate);
+    }
+    
+    // Query the view directly
+    const result = await request.query(`
+      SELECT * FROM [dbo].[vw_Cumulative_Weekly_Region_Sales]
+      WHERE Transaction_Date >= @StartDate
+      AND Transaction_Date <= @EndDate
+      ORDER BY Week_End DESC, Region, Product_Description;
+    `);
     
     logger.debug(`Regional performance query returned ${result.recordset.length} rows`);
     
     if (result.recordset.length === 0) {
       return res.status(404).json({
-        message: 'No regional performance data found'
+        message: 'No regional performance data found for the selected date range'
       });
     }
     
@@ -273,6 +225,78 @@ app.get('/api/regional-performance', async (req, res) => {
     logger.error('Error fetching regional performance data:', err);
     res.status(500).json({ 
       error: 'Error fetching regional performance data',
+      details: err.message
+    });
+  }
+});
+
+// Actual Sales endpoint
+app.get('/api/actual-sales', async (req, res) => {
+  logger.debug('Received request for /api/actual-sales');
+  
+  if (!poolConnected) {
+    return res.status(503).json({
+      error: 'Database not connected',
+      message: 'The database connection is not available'
+    });
+  }
+  
+  try {
+    // Extract date parameters
+    const startDate = req.query.start || null;
+    const endDate = req.query.end || null;
+    
+    // Default to 30 days if no date range provided
+    const defaultStartDate = new Date();
+    defaultStartDate.setDate(defaultStartDate.getDate() - 30);
+    const defaultEndDate = new Date();
+    
+    // Build the query with date parameters
+    const request = pool.request();
+    
+    if (startDate) {
+      request.input('StartDate', sql.Date, new Date(startDate));
+    } else {
+      request.input('StartDate', sql.Date, defaultStartDate);
+    }
+    
+    if (endDate) {
+      request.input('EndDate', sql.Date, new Date(endDate));
+    } else {
+      request.input('EndDate', sql.Date, defaultEndDate);
+    }
+    
+    const result = await request.query(`
+      SELECT 
+        s.Store_ID,
+        s.Store_Name,
+        s.Location,
+        p.Product_ID,
+        p.Description,
+        c.Transaction_Date,
+        c.Quantity,
+        c.Source
+      FROM dbo.Combined_Sales_Data_Final c WITH (NOLOCK)
+      JOIN dbo.Stores_Master s WITH (NOLOCK) ON c.Store_ID = s.Store_ID
+      JOIN dbo.Products_Master p WITH (NOLOCK) ON c.Product_ID = p.Product_ID
+      WHERE c.Transaction_Date >= @StartDate
+      AND c.Transaction_Date <= @EndDate
+      ORDER BY s.Store_Name, p.Description, c.Transaction_Date
+    `);
+    
+    logger.debug(`Actual sales query returned ${result.recordset.length} rows`);
+    
+    if (result.recordset.length === 0) {
+      return res.status(404).json({
+        message: 'No sales data found for the selected date range'
+      });
+    }
+    
+    res.json(result.recordset);
+  } catch (err) {
+    logger.error('Error fetching sales data:', err);
+    res.status(500).json({ 
+      error: 'Error fetching sales data',
       details: err.message
     });
   }
@@ -291,13 +315,29 @@ app.get('/api/stores', async (req, res) => {
   }
   
   try {
-    const result = await pool.request()
+    // Get all stores
+    const storesResult = await pool.request()
       .query(`
         SELECT * FROM Stores_Master
         ORDER BY Store_Name;
       `);
     
-    res.json(result.recordset);
+    // Get unique regions for dropdown
+    const regionsResult = await pool.request()
+      .query(`
+        SELECT DISTINCT Region FROM Stores_Master
+        WHERE Region IS NOT NULL AND Region <> ''
+        ORDER BY Region;
+      `);
+    
+    const regions = regionsResult.recordset.map(r => r.Region);
+    
+    // Format expected by stores-master.html
+    res.json({
+      stores: storesResult.recordset,
+      regions: regions,
+      lastRunDate: new Date().toISOString()
+    });
   } catch (err) {
     logger.error('Error fetching stores data:', err);
     res.status(500).json({ 

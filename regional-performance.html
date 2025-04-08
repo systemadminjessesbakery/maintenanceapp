@@ -273,13 +273,13 @@
 
     <div class="controls">
         <div class="date-range">
-            <label>Select Week:</label>
-            <input type="date" id="weekSelector" class="date-input">
-            <span>to</span>
-            <input type="date" id="endDate" class="date-input" disabled>
-            <button class="btn btn-green" onclick="refreshData()">
+            <label for="startDate">From:</label>
+            <input type="date" id="startDate" class="date-input">
+            <label for="endDate">To:</label>
+            <input type="date" id="endDate" class="date-input">
+            <button class="btn btn-green" onclick="fetchRegionalData()">
                 <i class="fas fa-sync-alt"></i>
-                Refresh Data
+                Update
             </button>
         </div>
         <button class="btn btn-outline" onclick="exportToExcel()">
@@ -423,29 +423,17 @@
             product: new Set()
         };
 
-        // Initialize date inputs
         document.addEventListener('DOMContentLoaded', function() {
-            // Clear any cached data to ensure fresh content
-            if (sessionStorage.getItem('regionalData')) {
-                console.log('Clearing cached regional data');
-                sessionStorage.removeItem('regionalData');
-            }
-            
+            // Set default date range (last 30 days)
             const today = new Date();
-            const lastSunday = new Date(today);
-            lastSunday.setDate(today.getDate() - today.getDay());
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(today.getDate() - 30);
             
-            const weekSelector = document.getElementById('weekSelector');
-            const endDate = document.getElementById('endDate');
+            document.getElementById('startDate').value = thirtyDaysAgo.toISOString().split('T')[0];
+            document.getElementById('endDate').value = today.toISOString().split('T')[0];
             
-            weekSelector.value = lastSunday.toISOString().split('T')[0];
-            
-            // Set end date to Saturday (6 days after Sunday)
-            const saturday = new Date(lastSunday);
-            saturday.setDate(lastSunday.getDate() + 6);
-            endDate.value = saturday.toISOString().split('T')[0];
-            
-            fetchData();
+            // Initial data fetch
+            fetchRegionalData();
         });
 
         function showFilter(type) {
@@ -724,8 +712,82 @@
             });
         }
 
-        function refreshData() {
-            fetchData();
+        async function fetchRegionalData() {
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            
+            if (!startDate || !endDate) {
+                showError('Please select a valid date range');
+                return;
+            }
+            
+            // Show loading indicator
+            const tableBody = document.getElementById('regionDataBody');
+            if (tableBody) {
+                tableBody.innerHTML = '<tr><td colspan="11" style="text-align:center;">Loading data...</td></tr>';
+            }
+            
+            try {
+                // Fetch data with date parameters
+                const response = await fetch(`/api/regional-performance?start=${startDate}&end=${endDate}`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}, message: ${await response.text()}`);
+                }
+                
+                const data = await response.json();
+                
+                if (!data || data.length === 0) {
+                    showNoData();
+                    return;
+                }
+                
+                // Store the data globally
+                allData = data;
+                filteredData = [...data];
+                
+                // Render data
+                renderTable(data);
+                updateSummary(data);
+                updateRankings(data);
+                
+            } catch (error) {
+                console.error('Error fetching regional data:', error);
+                showError('Error loading regional data: ' + error.message);
+            }
+        }
+        
+        function showError(message) {
+            const tableBody = document.getElementById('regionDataBody');
+            if (tableBody) {
+                tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="11" style="text-align: center; padding: 20px;">
+                            <div style="color: #a94442;">
+                                <i class="fas fa-exclamation-circle"></i> ${message}
+                            </div>
+                            <button onclick="fetchRegionalData()" class="btn btn-green" style="margin-top: 10px;">
+                                <i class="fas fa-sync-alt"></i> Retry
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }
+        }
+        
+        function showNoData() {
+            const tableBody = document.getElementById('regionDataBody');
+            if (tableBody) {
+                tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="11" style="text-align: center; padding: 20px;">
+                            <div style="color: #666;">
+                                <i class="fas fa-info-circle"></i> No regional performance data found for the selected date range
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }
         }
 
         function exportToExcel() {
@@ -803,47 +865,6 @@
                 startDate.value = this.value;
             }
         });
-
-        async function fetchData() {
-            const loadingElement = document.getElementById('loading');
-            loadingElement.style.display = 'block';
-            loadingElement.textContent = 'Loading regional performance data...';
-
-            try {
-                // Always bypass cache for API requests using timestamp
-                const timestamp = new Date().getTime();
-                const response = await fetch(`/api/regional-performance?_nocache=${timestamp}`, {
-                    method: 'GET',
-                    headers: {
-                        'Accept': 'application/json',
-                        'Cache-Control': 'no-cache, no-store',
-                        'Pragma': 'no-cache'
-                    }
-                });
-
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-
-                allData = await response.json();
-                filteredData = allData;
-                
-                // Add version indicator in console
-                console.log(`Loaded ${allData.length} records at ${new Date().toLocaleTimeString()}`);
-                
-                if (allData.length === 0) {
-                    loadingElement.textContent = 'No data available for the selected period';
-                    return;
-                }
-
-                loadingElement.style.display = 'none';
-                renderData(allData);
-
-            } catch (error) {
-                console.error('Error fetching data:', error);
-                loadingElement.textContent = `Error loading data: ${error.message}`;
-            }
-        }
     </script>
 </body>
 </html> 
