@@ -482,6 +482,16 @@ app.put('/api/stores/:storeId', async (req, res) => {
       return res.status(404).json({ error: 'Store not found' });
     }
 
+    // Get table schema to check for existence of columns
+    const schemaQuery = `
+      SELECT COLUMN_NAME 
+      FROM INFORMATION_SCHEMA.COLUMNS 
+      WHERE TABLE_NAME = 'Stores_Master'
+    `;
+    const schemaResult = await pool.request().query(schemaQuery);
+    const validColumns = schemaResult.recordset.map(r => r.COLUMN_NAME);
+    logger.debug('Valid columns in Stores_Master:', validColumns);
+
     // Validate required fields
     if (updates.Store_Name !== undefined && updates.Store_Name.trim() === '') {
       return res.status(400).json({ error: 'Store Name cannot be empty' });
@@ -497,8 +507,11 @@ app.put('/api/stores/:storeId', async (req, res) => {
     const updateFields = [];
     for (const [key, value] of Object.entries(updates)) {
       if (key === 'Store_ID') continue; // Skip Store_ID as it's the identifier
-      // Skip Created_At and Updated_At fields as they don't exist in table
-      if (key === 'Created_At' || key === 'Updated_At') continue;
+      // Skip fields that don't exist in the table
+      if (!validColumns.includes(key)) {
+        logger.debug(`Skipping field ${key} as it doesn't exist in the table`);
+        continue;
+      }
 
       if (['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SPECIAL_FRIDAY', 'SPECIAL_SUNDAY'].includes(key)) {
         // Handle boolean fields

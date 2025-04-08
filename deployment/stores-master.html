@@ -587,7 +587,7 @@
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
                 
-            const data = await response.json();
+                const data = await response.json();
                 console.log("Raw data received:", data);
                 
                 if (!data || !data.stores || !Array.isArray(data.stores)) {
@@ -595,15 +595,23 @@
                 }
                 
                 regions = Array.isArray(data.regions) ? data.regions : [];
-                allData = data.stores; // Store all data for filtering
+                
+                // Filter out any timestamp fields that might be in the response but not in the database
+                allData = data.stores.map(store => {
+                    const filteredStore = {...store};
+                    // Remove timestamp fields if they exist
+                    delete filteredStore.Created_At;
+                    delete filteredStore.Updated_At;
+                    return filteredStore;
+                });
 
                 // Update metrics
-                updateMetrics(data.stores, data.lastRunDate);
+                updateMetrics(allData, data.lastRunDate);
                 
                 console.log("Regions loaded:", regions);
-                console.log("Stores received:", data.stores.length + " records");
+                console.log("Stores received:", allData.length + " records");
                 
-                populateTable(data.stores);
+                populateTable(allData);
             } catch (error) {
                 console.error("Error fetching data:", error);
                 const loading = document.getElementById('loading');
@@ -1264,15 +1272,22 @@
             const overrideValue = select.value;
             const overrideColumn = dayColumn.substring(0, 3) + '_OVERRIDE';
             
+            // Create an update object with only the override field
+            const updates = {
+                [overrideColumn]: overrideValue
+            };
+            
+            // Remove any timestamp fields that might cause errors
+            delete updates.Created_At;
+            delete updates.Updated_At;
+            
             try {
                 const response = await fetch(`/api/stores/${storeId}`, {
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({
-                        [overrideColumn]: overrideValue
-                    })
+                    body: JSON.stringify(updates)
                 });
 
                 if (!response.ok) {
