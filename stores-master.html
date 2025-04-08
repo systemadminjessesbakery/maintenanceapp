@@ -10,7 +10,7 @@
     <script>
         // Convert logo to base64 for PDF export
         const logoImg = document.createElement('img');
-        logoImg.src = '/logo';
+        logoImg.src = '/images/logo.jpg';
         logoImg.onload = function() {
             const canvas = document.createElement('canvas');
             canvas.width = logoImg.width;
@@ -463,7 +463,9 @@
             <button class="back-button btn" onclick="window.location.href='/'">
                 <i class="fas fa-arrow-left"></i> Back to Menu
             </button>
-            <img src="/logo" alt="Jesse's Bakery Logo" class="logo">
+            <div class="logo">
+                <img src="/images/logo.jpg" alt="Jesse's Bakery Logo">
+            </div>
             <div class="title-container">
                 <h1 class="main-title">Stores Master Editor</h1>
                 <p class="subtitle">Manage store information and settings</p>

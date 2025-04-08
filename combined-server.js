@@ -33,6 +33,18 @@ logger.info(`Server starting with version: ${VERSION}`);
 app.use(cors());
 app.use(bodyParser.json());
 
+// Add static file serving before other routes
+app.use(express.static(__dirname));
+app.use('/images', express.static('images'));
+
+// Add CORS headers
+app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    next();
+});
+
 // Simplified request logging middleware - only log in debug mode
 app.use((req, res, next) => {
   logger.debug(`${req.method} ${req.url}`);
@@ -182,6 +194,7 @@ app.get('/api/regional-performance', async (req, res) => {
   });
 
   if (!poolConnected) {
+    logger.error('Database connection not available');
     return res.status(503).json({
       error: 'Database not connected',
       message: 'The database connection is not available'
@@ -195,9 +208,11 @@ app.get('/api/regional-performance', async (req, res) => {
     
     // Validate date format
     if (req.query.start && isNaN(startDate)) {
+      logger.error('Invalid start date format:', req.query.start);
       return res.status(400).json({ error: 'Invalid start date format' });
     }
     if (req.query.end && isNaN(endDate)) {
+      logger.error('Invalid end date format:', req.query.end);
       return res.status(400).json({ error: 'Invalid end date format' });
     }
     
@@ -213,6 +228,8 @@ app.get('/api/regional-performance', async (req, res) => {
     // Ensure dates are at midnight for consistent comparison
     startDate.setHours(0, 0, 0, 0);
     endDate.setHours(23, 59, 59, 999);
+
+    logger.debug('Processing request with date range:', { startDate, endDate });
     
     // Build the query with date parameters
     const request = pool.request()
@@ -226,19 +243,23 @@ app.get('/api/regional-performance', async (req, res) => {
           DATEADD(day, -(DATEPART(weekday, Transaction_Date) - 1), Transaction_Date) as Week_Start,
           DATEADD(day, 7-(DATEPART(weekday, Transaction_Date)), Transaction_Date) as Week_End,
           Location as Region,
+          Description as Product_Description,
           DATEPART(weekday, Transaction_Date) as DayOfWeek,
           SUM(Quantity) as Daily_Quantity
         FROM Combined_Sales_Data_Final WITH (NOLOCK)
         WHERE Transaction_Date >= @StartDate
         AND Transaction_Date <= @EndDate
+        AND Location IS NOT NULL
         GROUP BY 
           Location,
+          Description,
           Transaction_Date,
           DATEPART(weekday, Transaction_Date)
       )
       SELECT 
         CONVERT(varchar, Week_Start, 23) + ' - ' + CONVERT(varchar, Week_End, 23) as Week_Label,
         Region,
+        Product_Description,
         SUM(CASE WHEN DayOfWeek = 1 THEN Daily_Quantity ELSE 0 END) as Sunday,
         SUM(CASE WHEN DayOfWeek = 2 THEN Daily_Quantity ELSE 0 END) as Monday,
         SUM(CASE WHEN DayOfWeek = 3 THEN Daily_Quantity ELSE 0 END) as Tuesday,
@@ -248,12 +269,17 @@ app.get('/api/regional-performance', async (req, res) => {
         SUM(CASE WHEN DayOfWeek = 7 THEN Daily_Quantity ELSE 0 END) as Saturday,
         SUM(Daily_Quantity) as Total_Week_Quantity
       FROM WeeklyData
-      GROUP BY Week_Start, Week_End, Region
-      ORDER BY Week_End DESC, Region;
+      GROUP BY Week_Start, Week_End, Region, Product_Description
+      ORDER BY Week_End DESC, Region, Product_Description;
     `;
     
     logger.debug('Executing regional performance query with date range:', { startDate, endDate });
     const result = await request.query(query);
+    
+    if (!result || !result.recordset) {
+      logger.error('Query returned no recordset');
+      throw new Error('Invalid query result structure');
+    }
     
     if (result.recordset.length === 0) {
       logger.info('No data found for date range:', { startDate, endDate });
