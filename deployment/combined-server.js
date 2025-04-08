@@ -618,6 +618,10 @@ app.put('/api/stores/:storeId', async (req, res) => {
       
       logger.debug(`SQL request inputs: ${JSON.stringify(inputDetails)}`);
       
+      // !!! CRITICAL ERROR LOGGING FOR STORES MASTER DEBUGGING !!!
+      logger.info(`=== ATTEMPTING STORE UPDATE FOR ${storeId} ===`);
+      logger.info(`QUERY: UPDATE Stores_Master SET ${updateFields.join(', ')} WHERE Store_ID = ${storeId}`);
+      
       const result = await request.query(query);
       logger.info(`Store ${storeId} updated successfully`);
       
@@ -627,7 +631,11 @@ app.put('/api/stores/:storeId', async (req, res) => {
         res.json({ message: 'Store updated successfully' });
       }
     } catch (sqlErr) {
-      logger.error(`SQL execution failed for store ${storeId}:`, sqlErr);
+      // !!! CRITICAL ERROR LOGGING FOR STORES MASTER DEBUGGING !!!
+      logger.error(`=== SQL ERROR UPDATING STORE ${storeId} ===`);
+      logger.error(`EXACT SQL ERROR: ${sqlErr.message}`);
+      logger.error(`SQL STATE: ${sqlErr.state}, CLASS: ${sqlErr.class}`);
+      logger.error(`ERROR STACK: ${sqlErr.stack}`);
       logger.error(`SQL error number: ${sqlErr.number}, state: ${sqlErr.state}, class: ${sqlErr.class}`);
       
       // Handle specific SQL errors
@@ -707,6 +715,69 @@ app.delete('/api/stores/:storeId', async (req, res) => {
   }
 });
 
+// Add a test endpoint for store updates
+app.get('/api/stores/:storeId/test-update', async (req, res) => {
+  const storeId = req.params.storeId;
+  logger.info(`=== TEST UPDATE FOR STORE ${storeId} ===`);
+  
+  if (!poolConnected) {
+    return res.status(503).json({
+      error: 'Database not connected',
+      message: 'The database connection is not available'
+    });
+  }
+  
+  try {
+    // Get current store data
+    const storeData = await pool.request()
+      .input('Store_ID', sql.NVarChar(50), storeId)
+      .query('SELECT * FROM Stores_Master WHERE Store_ID = @Store_ID');
+    
+    if (storeData.recordset.length === 0) {
+      return res.status(404).json({ error: 'Store not found' });
+    }
+    
+    const store = storeData.recordset[0];
+    
+    // Try a simple update with just one field
+    try {
+      const result = await pool.request()
+        .input('Store_ID', sql.NVarChar(50), storeId)
+        .input('Address', sql.NVarChar(255), store.Address || 'Test Address ' + Date.now())
+        .query(`
+          UPDATE Stores_Master 
+          SET Address = @Address, 
+              Updated_At = GETDATE()
+          WHERE Store_ID = @Store_ID;
+          
+          SELECT * FROM Stores_Master WHERE Store_ID = @Store_ID;
+        `);
+      
+      logger.info(`Test update successful for store ${storeId}`);
+      res.json({
+        success: true,
+        message: 'Test update successful',
+        store: result.recordset[0]
+      });
+    } catch (sqlErr) {
+      logger.error(`=== TEST UPDATE SQL ERROR ===`);
+      logger.error(`Message: ${sqlErr.message}`);
+      logger.error(`Number: ${sqlErr.number}, State: ${sqlErr.state}`);
+      return res.status(500).json({ 
+        error: 'Test update failed',
+        message: sqlErr.message,
+        errorNumber: sqlErr.number
+      });
+    }
+  } catch (err) {
+    logger.error(`Error in test update for store ${storeId}:`, err);
+    res.status(500).json({ 
+      error: 'Error in test update',
+      details: err.message 
+    });
+  }
+});
+
 // Serve static files with cache busting
 app.use(express.static(__dirname, {
   etag: false,
@@ -719,6 +790,44 @@ app.use(express.static(__dirname, {
     }
   }
 }));
+
+// Serve logo at both /logo and /images/logo.jpg paths
+app.get('/logo', (req, res) => {
+  const logoPath = path.join(__dirname, 'images', 'logo.jpg');
+  
+  try {
+    if (fs.existsSync(logoPath)) {
+      // Use Sharp library to resize image if available
+      try {
+        // Check if Sharp is available
+        const sharp = require('sharp');
+        
+        // Set max width to 50 pixels and resize while maintaining aspect ratio
+        sharp(logoPath)
+          .resize({ width: 50, withoutEnlargement: true })
+          .toBuffer()
+          .then(data => {
+            res.set('Content-Type', 'image/jpeg');
+            res.send(data);
+          })
+          .catch(err => {
+            logger.error('Error resizing logo:', err);
+            // Fallback to sending original file
+            res.sendFile(logoPath);
+          });
+      } catch (moduleErr) {
+        // Sharp not available, use HTML/CSS resize instead by sending the file directly
+        res.sendFile(logoPath);
+      }
+    } else {
+      // If logo doesn't exist, serve a default image or return 404
+      res.status(404).send('Logo not found');
+    }
+  } catch (err) {
+    logger.error('Error serving logo:', err);
+    res.status(500).send('Error serving logo');
+  }
+});
 
 // Default route handler for unmatched routes
 app.use((req, res) => {

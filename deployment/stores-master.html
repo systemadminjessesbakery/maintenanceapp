@@ -1505,6 +1505,68 @@
             showStatusMessage('PDF file exported successfully', true);
         }
 
+        // Add test update functionality
+        async function testUpdate(storeId, fieldName) {
+            try {
+                console.log(`Testing update for store ${storeId}, field: ${fieldName}`);
+                
+                // Create a simple update just for the selected field
+                const updates = {};
+                
+                // Get the current value from the table
+                const row = Array.from(document.querySelectorAll('tr')).find(r => r.dataset.storeId === storeId);
+                if (!row) {
+                    console.error(`Row for store ${storeId} not found`);
+                    return;
+                }
+                
+                const cell = Array.from(row.getElementsByTagName('td')).find(c => c.dataset.column === fieldName);
+                if (!cell) {
+                    console.error(`Cell for field ${fieldName} not found`);
+                    return;
+                }
+                
+                // Set a test value
+                if (['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 
+                     'SPECIAL_FRIDAY', 'SPECIAL_SUNDAY'].includes(fieldName)) {
+                    const checkbox = cell.querySelector('input[type="checkbox"]');
+                    updates[fieldName] = checkbox && checkbox.checked ? 'FALSE' : 'TRUE';
+                } else {
+                    const currentValue = cell.textContent.trim();
+                    updates[fieldName] = currentValue + ' (test)';
+                }
+                
+                console.log(`Testing update with value:`, updates);
+                
+                // Send the request
+                const response = await fetch(`/api/stores/${storeId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(updates)
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || errorData.details || `Failed to update ${fieldName}`);
+                }
+                
+                const result = await response.json();
+                console.log(`Test update successful:`, result);
+                showStatusMessage(`Test update of ${fieldName} successful`, true);
+                await fetchData(); // Refresh the table
+            } catch (error) {
+                console.error(`Test update failed:`, error);
+                showStatusMessage(`Test update failed: ${error.message}`, false);
+            }
+        }
+
+        // For quick debugging from console
+        window.testStoreField = async function(storeId, fieldName) {
+            await testUpdate(storeId, fieldName);
+        };
+
         // Start fetching data when page loads
         window.onload = fetchData;
     </script>
