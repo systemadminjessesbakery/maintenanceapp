@@ -497,6 +497,8 @@ app.put('/api/stores/:storeId', async (req, res) => {
     const updateFields = [];
     for (const [key, value] of Object.entries(updates)) {
       if (key === 'Store_ID') continue; // Skip Store_ID as it's the identifier
+      // Skip Created_At and Updated_At fields as they don't exist in table
+      if (key === 'Created_At' || key === 'Updated_At') continue;
 
       if (['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SPECIAL_FRIDAY', 'SPECIAL_SUNDAY'].includes(key)) {
         // Handle boolean fields
@@ -921,6 +923,257 @@ app.get('/api/verify-schema', async (req, res) => {
       error: err.message,
       code: err.number,
       state: err.state
+    });
+  }
+});
+
+// Adjustments endpoints
+// Get all adjustments
+app.get('/api/adjustments', async (req, res) => {
+  logger.debug('Received request for /api/adjustments');
+  
+  if (!poolConnected) {
+    return res.status(503).json({
+      error: 'Database not connected',
+      message: 'The database connection is not available'
+    });
+  }
+  
+  try {
+    const result = await pool.request()
+      .query(`
+        SELECT [Adjustment_ID]
+          ,[Store_ID]
+          ,[Store_Name]
+          ,[Product_ID]
+          ,[Product_Description]
+          ,[SUNDAY]
+          ,[MONDAY]
+          ,[TUESDAY]
+          ,[WEDNESDAY]
+          ,[THURSDAY]
+          ,[FRIDAY]
+          ,[SATURDAY]
+          ,[Week_Total]
+          ,[Created_At]
+          ,[Updated_At]
+        FROM [dbo].[Store_Product_Adjustments]
+        ORDER BY Created_At DESC;
+      `);
+    
+    res.json(result.recordset);
+  } catch (err) {
+    logger.error('Error fetching adjustments data:', err);
+    res.status(500).json({ 
+      error: 'Error fetching adjustments data',
+      details: err.message
+    });
+  }
+});
+
+// Get adjustment by ID
+app.get('/api/adjustments/:adjustmentId', async (req, res) => {
+  const adjustmentId = req.params.adjustmentId;
+  logger.debug(`Received request for adjustment ID: ${adjustmentId}`);
+  
+  if (!poolConnected) {
+    return res.status(503).json({
+      error: 'Database not connected',
+      message: 'The database connection is not available'
+    });
+  }
+  
+  try {
+    const result = await pool.request()
+      .input('Adjustment_ID', sql.Int, adjustmentId)
+      .query(`
+        SELECT * FROM Store_Product_Adjustments
+        WHERE Adjustment_ID = @Adjustment_ID;
+      `);
+    
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ error: 'Adjustment not found' });
+    }
+    
+    res.json(result.recordset[0]);
+  } catch (err) {
+    logger.error(`Error fetching adjustment ${adjustmentId}:`, err);
+    res.status(500).json({ 
+      error: 'Error fetching adjustment data',
+      details: err.message
+    });
+  }
+});
+
+// Create a new adjustment
+app.post('/api/adjustments', async (req, res) => {
+  logger.debug('Received request to create a new adjustment');
+  const adjustment = req.body;
+  
+  if (!poolConnected) {
+    return res.status(503).json({
+      error: 'Database not connected',
+      message: 'The database connection is not available'
+    });
+  }
+  
+  try {
+    const request = pool.request()
+      .input('Store_ID', sql.VarChar(50), adjustment.Store_ID)
+      .input('Store_Name', sql.NVarChar(255), adjustment.Store_Name)
+      .input('Product_ID', sql.VarChar(50), adjustment.Product_ID)
+      .input('Product_Description', sql.NVarChar(255), adjustment.Product_Description)
+      .input('SUNDAY', sql.Int, adjustment.SUNDAY || 0)
+      .input('MONDAY', sql.Int, adjustment.MONDAY || 0)
+      .input('TUESDAY', sql.Int, adjustment.TUESDAY || 0)
+      .input('WEDNESDAY', sql.Int, adjustment.WEDNESDAY || 0)
+      .input('THURSDAY', sql.Int, adjustment.THURSDAY || 0)
+      .input('FRIDAY', sql.Int, adjustment.FRIDAY || 0)
+      .input('SATURDAY', sql.Int, adjustment.SATURDAY || 0)
+      .input('Week_Total', sql.Int, adjustment.Week_Total || 0);
+    
+    const query = `
+      INSERT INTO Store_Product_Adjustments (
+        Store_ID, Store_Name, Product_ID, Product_Description,
+        SUNDAY, MONDAY, TUESDAY, WEDNESDAY, THURSDAY, FRIDAY, SATURDAY,
+        Week_Total, Created_At, Updated_At
+      )
+      VALUES (
+        @Store_ID, @Store_Name, @Product_ID, @Product_Description,
+        @SUNDAY, @MONDAY, @TUESDAY, @WEDNESDAY, @THURSDAY, @FRIDAY, @SATURDAY,
+        @Week_Total, GETDATE(), GETDATE()
+      );
+      
+      SELECT SCOPE_IDENTITY() AS Adjustment_ID;
+    `;
+    
+    const result = await request.query(query);
+    const adjustmentId = result.recordset[0].Adjustment_ID;
+    
+    // Fetch and return the created adjustment
+    const newAdjustment = await pool.request()
+      .input('Adjustment_ID', sql.Int, adjustmentId)
+      .query('SELECT * FROM Store_Product_Adjustments WHERE Adjustment_ID = @Adjustment_ID');
+    
+    logger.info(`Adjustment created with ID: ${adjustmentId}`);
+    res.status(201).json(newAdjustment.recordset[0]);
+  } catch (err) {
+    logger.error('Error creating adjustment:', err);
+    res.status(500).json({ 
+      error: 'Error creating adjustment',
+      details: err.message
+    });
+  }
+});
+
+// Update an adjustment
+app.put('/api/adjustments/:adjustmentId', async (req, res) => {
+  const adjustmentId = req.params.adjustmentId;
+  const updates = req.body;
+  logger.debug(`Received request to update adjustment ID: ${adjustmentId}`);
+  
+  if (!poolConnected) {
+    return res.status(503).json({
+      error: 'Database not connected',
+      message: 'The database connection is not available'
+    });
+  }
+  
+  try {
+    // Validate adjustment exists
+    const adjustmentCheck = await pool.request()
+      .input('Adjustment_ID', sql.Int, adjustmentId)
+      .query('SELECT Adjustment_ID FROM Store_Product_Adjustments WHERE Adjustment_ID = @Adjustment_ID');
+    
+    if (adjustmentCheck.recordset.length === 0) {
+      return res.status(404).json({ error: 'Adjustment not found' });
+    }
+    
+    const request = pool.request()
+      .input('Adjustment_ID', sql.Int, adjustmentId)
+      .input('Store_ID', sql.VarChar(50), updates.Store_ID)
+      .input('Store_Name', sql.NVarChar(255), updates.Store_Name)
+      .input('Product_ID', sql.VarChar(50), updates.Product_ID)
+      .input('Product_Description', sql.NVarChar(255), updates.Product_Description)
+      .input('SUNDAY', sql.Int, updates.SUNDAY || 0)
+      .input('MONDAY', sql.Int, updates.MONDAY || 0)
+      .input('TUESDAY', sql.Int, updates.TUESDAY || 0)
+      .input('WEDNESDAY', sql.Int, updates.WEDNESDAY || 0)
+      .input('THURSDAY', sql.Int, updates.THURSDAY || 0)
+      .input('FRIDAY', sql.Int, updates.FRIDAY || 0)
+      .input('SATURDAY', sql.Int, updates.SATURDAY || 0)
+      .input('Week_Total', sql.Int, updates.Week_Total || 0);
+    
+    const query = `
+      UPDATE Store_Product_Adjustments 
+      SET Store_ID = @Store_ID,
+          Store_Name = @Store_Name,
+          Product_ID = @Product_ID,
+          Product_Description = @Product_Description,
+          SUNDAY = @SUNDAY,
+          MONDAY = @MONDAY,
+          TUESDAY = @TUESDAY,
+          WEDNESDAY = @WEDNESDAY,
+          THURSDAY = @THURSDAY,
+          FRIDAY = @FRIDAY,
+          SATURDAY = @SATURDAY,
+          Week_Total = @Week_Total
+      WHERE Adjustment_ID = @Adjustment_ID;
+      
+      SELECT * FROM Store_Product_Adjustments WHERE Adjustment_ID = @Adjustment_ID;
+    `;
+    
+    const result = await request.query(query);
+    logger.info(`Adjustment ${adjustmentId} updated successfully`);
+    
+    if (result.recordset.length > 0) {
+      res.json(result.recordset[0]);
+    } else {
+      res.json({ message: 'Adjustment updated successfully' });
+    }
+  } catch (err) {
+    logger.error(`Error updating adjustment ${adjustmentId}:`, err);
+    res.status(500).json({ 
+      error: 'Error updating adjustment',
+      details: err.message
+    });
+  }
+});
+
+// Delete an adjustment
+app.delete('/api/adjustments/:adjustmentId', async (req, res) => {
+  const adjustmentId = req.params.adjustmentId;
+  logger.debug(`Received request to delete adjustment ID: ${adjustmentId}`);
+  
+  if (!poolConnected) {
+    return res.status(503).json({
+      error: 'Database not connected',
+      message: 'The database connection is not available'
+    });
+  }
+  
+  try {
+    // Check if the adjustment exists
+    const adjustmentCheck = await pool.request()
+      .input('Adjustment_ID', sql.Int, adjustmentId)
+      .query('SELECT Adjustment_ID FROM Store_Product_Adjustments WHERE Adjustment_ID = @Adjustment_ID');
+    
+    if (adjustmentCheck.recordset.length === 0) {
+      return res.status(404).json({ error: 'Adjustment not found' });
+    }
+    
+    // Delete the adjustment
+    await pool.request()
+      .input('Adjustment_ID', sql.Int, adjustmentId)
+      .query('DELETE FROM Store_Product_Adjustments WHERE Adjustment_ID = @Adjustment_ID');
+    
+    logger.info(`Adjustment ${adjustmentId} deleted successfully`);
+    res.json({ message: 'Adjustment deleted successfully' });
+  } catch (err) {
+    logger.error(`Error deleting adjustment ${adjustmentId}:`, err);
+    res.status(500).json({ 
+      error: 'Error deleting adjustment',
+      details: err.message
     });
   }
 });
