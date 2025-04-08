@@ -1217,6 +1217,71 @@ app.get('/api/final-deliveries', async (req, res) => {
   }
 });
 
+// Test database connection and permissions
+app.get('/api/test-connection', async (req, res) => {
+  logger.info('Testing database connection and permissions');
+  
+  if (!poolConnected) {
+    return res.status(503).json({
+      error: 'Database not connected',
+      message: 'The database connection is not available'
+    });
+  }
+  
+  try {
+    // Test 1: Read operation
+    const readResult = await pool.request()
+      .query('SELECT TOP 1 * FROM Stores_Master');
+    
+    // Test 2: Write operation - create temporary test record
+    const testId = 'TEST_' + Date.now();
+    const writeResult = await pool.request()
+      .input('TestId', sql.VarChar(50), testId)
+      .query(`
+        BEGIN TRY
+          BEGIN TRANSACTION;
+          
+          INSERT INTO Stores_Master (Store_ID, Store_Name, Created_At, Updated_At)
+          VALUES (@TestId, 'TEST_RECORD', GETDATE(), GETDATE());
+          
+          DELETE FROM Stores_Master WHERE Store_ID = @TestId;
+          
+          COMMIT TRANSACTION;
+          
+          SELECT 'Success' as Result;
+        END TRY
+        BEGIN CATCH
+          IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+          THROW;
+        END CATCH
+      `);
+    
+    res.json({
+      status: 'success',
+      readPermission: true,
+      writePermission: true,
+      details: {
+        readResult: 'Successfully read from database',
+        writeResult: 'Successfully performed write test'
+      }
+    });
+    
+  } catch (err) {
+    logger.error('Database test error:', err);
+    res.status(500).json({
+      status: 'error',
+      error: err.message,
+      code: err.number,
+      state: err.state,
+      details: {
+        readPermission: err.message.includes('SELECT') ? false : true,
+        writePermission: err.message.includes('INSERT') || err.message.includes('DELETE') ? false : true
+      }
+    });
+  }
+});
+
 // Serve static files with cache busting
 app.use(express.static(__dirname, {
   setHeaders: (res, path) => {
