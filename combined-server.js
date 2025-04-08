@@ -599,11 +599,19 @@ app.put('/api/stores/:storeId', async (req, res) => {
     const updateFields = [];
     const request = pool.request().input('storeId', sql.VarChar, storeId);
 
+    // Define boolean fields
+    const booleanFields = [
+      'SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 
+      'FRIDAY', 'SATURDAY', 'SPECIAL_FRIDAY', 'SPECIAL_SUNDAY'
+    ];
+
     Object.entries(updates).forEach(([key, value]) => {
       if (key !== 'Store_ID') { // Don't update the ID
-        if (typeof value === 'boolean') {
+        if (booleanFields.includes(key)) {
+          // Handle string 'TRUE'/'FALSE' values
+          const boolValue = value === 'TRUE' || value === true || value === '1' || value === 1 ? 1 : 0;
           updateFields.push(`${key} = @${key}`);
-          request.input(key, sql.Bit, value ? 1 : 0);
+          request.input(key, sql.Bit, boolValue);
         } else {
           updateFields.push(`${key} = @${key}`);
           request.input(key, sql.VarChar, value);

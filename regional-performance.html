@@ -24,17 +24,15 @@
         }
 
         .logo {
-            height: 40px;
-            width: auto;
-            margin-right: 12px;
-            display: flex;
-            align-items: center;
+            max-width: 120px;
+            height: auto;
+            margin-bottom: 15px;
+            display: inline-block;
         }
 
         .logo img, .logo svg {
-            height: 100%;
-            width: auto;
-            object-fit: contain;
+            max-width: 100%;
+            height: auto;
         }
 
         .back-button {
@@ -349,6 +347,12 @@
                     <i class="fas fa-sync-alt"></i>
                     Update
                 </button>
+            </div>
+            <div class="region-selector">
+                <label for="regionSelect">Region for Chart:</label>
+                <select id="regionSelect" class="date-input">
+                    <option value="all">All Regions</option>
+                </select>
             </div>
             <button class="btn btn-outline" onclick="exportToExcel()">
                 <i class="fas fa-file-excel"></i>
@@ -731,32 +735,91 @@
             const regions = [...new Set(data.map(row => row.Region))];
             const weeks = [...new Set(data.map(row => row.Week_Label))].sort();
             
+            // Update region selector
+            const regionSelect = document.getElementById('regionSelect');
+            const currentValue = regionSelect.value;
+            
+            // Clear existing options except the first one
+            while (regionSelect.options.length > 1) {
+                regionSelect.remove(1);
+            }
+            
+            // Add region options
+            regions.forEach(region => {
+                const option = document.createElement('option');
+                option.value = region;
+                option.textContent = region;
+                regionSelect.appendChild(option);
+            });
+            
+            // Restore selected value if it exists in the new options
+            if (currentValue && regions.includes(currentValue)) {
+                regionSelect.value = currentValue;
+            } else {
+                regionSelect.value = 'all';
+            }
+            
+            // Get selected region
+            const selectedRegion = regionSelect.value;
+            
             // Create datasets for each day of the week
             const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
             const datasets = [];
             
-            // For each region, create a dataset for each day
-            regions.forEach((region, regionIndex) => {
-                const regionData = data.filter(row => row.Region === region);
+            // If "all" is selected, create a combined dataset
+            if (selectedRegion === 'all') {
+                // Calculate combined totals for each week and day
+                const combinedData = {};
+                weeks.forEach(week => {
+                    combinedData[week] = {
+                        Sunday: 0, Monday: 0, Tuesday: 0, Wednesday: 0, 
+                        Thursday: 0, Friday: 0, Saturday: 0
+                    };
+                    
+                    // Sum up values for each day across all regions
+                    data.filter(row => row.Week_Label === week).forEach(row => {
+                        days.forEach(day => {
+                            combinedData[week][day] += row[day] || 0;
+                        });
+                    });
+                });
                 
+                // Create a dataset for each day
+                days.forEach((day, dayIndex) => {
+                    const dayData = weeks.map(week => combinedData[week][day]);
+                    
+                    datasets.push({
+                        label: day,
+                        data: dayData,
+                        borderColor: `hsl(${dayIndex * 360 / days.length}, 70%, 50%)`,
+                        backgroundColor: `hsla(${dayIndex * 360 / days.length}, 70%, 50%, 0.1)`,
+                        borderDash: dayIndex === 0 ? [] : [5, 5], // Solid line for Sunday, dashed for other days
+                        fill: false,
+                        tension: 0.1
+                    });
+                });
+            } else {
+                // Filter data for selected region
+                const regionData = data.filter(row => row.Region === selectedRegion);
+                
+                // Create a dataset for each day
                 days.forEach((day, dayIndex) => {
                     const dayData = weeks.map(week => {
                         const weekData = regionData.find(row => row.Week_Label === week);
                         return weekData ? weekData[day] : 0;
                     });
                     
-                    // Create a dataset for this day
                     datasets.push({
-                        label: `${region} - ${day}`,
+                        label: day,
                         data: dayData,
-                        borderColor: `hsl(${regionIndex * 360 / regions.length}, 70%, 50%)`,
-                        backgroundColor: `hsla(${regionIndex * 360 / regions.length}, 70%, 50%, 0.1)`,
+                        borderColor: `hsl(${dayIndex * 360 / days.length}, 70%, 50%)`,
+                        backgroundColor: `hsla(${dayIndex * 360 / days.length}, 70%, 50%, 0.1)`,
                         borderDash: dayIndex === 0 ? [] : [5, 5], // Solid line for Sunday, dashed for other days
                         fill: false,
                         tension: 0.1
                     });
                 });
-            });
+            }
 
             const ctx = document.getElementById('performanceChart').getContext('2d');
             if (window.chart) {
@@ -790,11 +853,13 @@
                     plugins: {
                         title: {
                             display: true,
-                            text: 'Regional Daily Performance Comparison'
+                            text: selectedRegion === 'all' 
+                                ? 'Combined Regional Daily Performance' 
+                                : `${selectedRegion} Daily Performance`
                         },
                         legend: {
                             position: 'bottom',
-                            maxHeight: 200
+                            maxHeight: 100
                         },
                         tooltip: {
                             mode: 'index',
@@ -810,13 +875,17 @@
             });
         }
 
-        async function fetchRegionalData(startDate, endDate) {
+        async function fetchRegionalData() {
             const loadingIndicator = document.getElementById('loadingIndicator');
             const lastRefreshTime = document.getElementById('lastRefreshTime');
             const dateRangeDisplay = document.getElementById('dateRangeDisplay');
             
             try {
                 loadingIndicator.style.display = 'flex';
+                
+                // Get date values
+                const startDate = document.getElementById('startDate').value;
+                const endDate = document.getElementById('endDate').value;
                 
                 // Validate date range
                 if (startDate && endDate && new Date(startDate) > new Date(endDate)) {
@@ -868,7 +937,7 @@
                 
                 // Update data and display
                 allData = result.data;
-                clearFilters();
+                clearAllFilters();
                 renderData(allData);
                 
                 return result.data;
@@ -882,7 +951,7 @@
         }
 
         function exportToExcel() {
-            const startDate = document.getElementById('weekSelector').value;
+            const startDate = document.getElementById('startDate').value;
             const endDate = document.getElementById('endDate').value;
             const dateRange = startDate && endDate ? `_${startDate}_to_${endDate}` : '';
             
@@ -896,7 +965,7 @@
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF('l', 'pt', 'a4');
             
-            const startDate = document.getElementById('weekSelector').value;
+            const startDate = document.getElementById('startDate').value;
             const endDate = document.getElementById('endDate').value;
             const dateRange = startDate && endDate ? `${startDate} to ${endDate}` : '';
             
@@ -931,7 +1000,7 @@
         }
 
         // Add date range validation
-        document.getElementById('weekSelector').addEventListener('change', function() {
+        document.getElementById('startDate').addEventListener('change', function() {
             const startDate = new Date(this.value);
             const endDate = document.getElementById('endDate');
             
@@ -946,7 +1015,7 @@
 
         document.getElementById('endDate').addEventListener('change', function() {
             const endDate = new Date(this.value);
-            const startDate = document.getElementById('weekSelector');
+            const startDate = document.getElementById('startDate');
             
             // Set maximum date to end date
             startDate.max = this.value;
@@ -985,13 +1054,21 @@
             }
         }
 
-        // Add refresh button click handler
-        document.getElementById('refreshButton').addEventListener('click', async () => {
-            await fetchRegionalData();
+        // Add event listener for region selector
+        document.getElementById('regionSelect').addEventListener('change', function() {
+            updateChart(allData);
         });
 
         // Start auto-refresh when page loads
         document.addEventListener('DOMContentLoaded', () => {
+            // Set default date range (last 30 days)
+            const today = new Date();
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(today.getDate() - 30);
+            
+            document.getElementById('startDate').value = thirtyDaysAgo.toISOString().split('T')[0];
+            document.getElementById('endDate').value = today.toISOString().split('T')[0];
+            
             startAutoRefresh(5); // Refresh every 5 minutes
             fetchRegionalData(); // Initial data load
         });
