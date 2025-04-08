@@ -58,8 +58,16 @@
             margin-bottom: 15px;
         }
         .logo {
-            max-width: 50px;
+            width: 50px;
             height: auto;
+            margin: 10px;
+            display: block;
+        }
+        .logo img {
+            width: 50px;
+            height: auto;
+            display: block;
+            margin: 0 auto;
         }
         .title-container {
             text-align: center;
@@ -485,7 +493,9 @@
                 <i class="fas fa-arrow-left"></i> Back to Menu
             </a>
             <div class="logo-container">
-                <img src="/logo" alt="Jesse's Bakery Logo" class="logo">
+                <div class="logo">
+                    <img src="/logo" alt="Jesse's Bakery Logo">
+                </div>
             </div>
             <div class="title-container">
                 <h1 class="main-title">Stores Master Editor</h1>
