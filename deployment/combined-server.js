@@ -913,6 +913,58 @@ app.get('/api/stores/:storeId/test-update', async (req, res) => {
   }
 });
 
+// Test database connection status
+app.get('/api/test-db-connection', async (req, res) => {
+  logger.info('Testing database connection status');
+  
+  try {
+    // Test 1: Check if pool is connected
+    if (!poolConnected) {
+      return res.status(503).json({
+        status: 'error',
+        error: 'Database not connected',
+        message: 'The database connection is not available'
+      });
+    }
+    
+    // Test 2: Try a simple query
+    const result = await pool.request()
+      .query('SELECT @@version as version');
+    
+    // Test 3: Check permissions on Stores_Master table
+    const permissionCheck = await pool.request()
+      .query(`
+        SELECT HAS_PERMS_BY_NAME('Stores_Master', 'OBJECT', 'SELECT') as can_select,
+               HAS_PERMS_BY_NAME('Stores_Master', 'OBJECT', 'UPDATE') as can_update,
+               HAS_PERMS_BY_NAME('Stores_Master', 'OBJECT', 'INSERT') as can_insert,
+               HAS_PERMS_BY_NAME('Stores_Master', 'OBJECT', 'DELETE') as can_delete
+      `);
+    
+    res.json({
+      status: 'success',
+      connected: true,
+      sqlVersion: result.recordset[0].version,
+      permissions: permissionCheck.recordset[0],
+      poolInfo: {
+        max: pool.pool.max,
+        min: pool.pool.min,
+        size: pool.pool.size,
+        available: pool.pool.available,
+        pending: pool.pool.pending
+      }
+    });
+    
+  } catch (err) {
+    logger.error('Database connection test error:', err);
+    res.status(500).json({
+      status: 'error',
+      error: err.message,
+      code: err.number,
+      state: err.state
+    });
+  }
+});
+
 // Serve static files with cache busting
 app.use(express.static(__dirname, {
   etag: false,
