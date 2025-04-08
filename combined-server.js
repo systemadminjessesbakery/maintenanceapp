@@ -200,40 +200,6 @@ app.get('/api/regional-performance', async (req, res) => {
   }
   
   try {
-    // Extract date parameters with validation
-    let startDate = req.query.start ? new Date(req.query.start) : null;
-    let endDate = req.query.end ? new Date(req.query.end) : null;
-    
-    // Validate date format
-    if (req.query.start && isNaN(startDate)) {
-      logger.error('Invalid start date format:', req.query.start);
-      return res.status(400).json({ error: 'Invalid start date format' });
-    }
-    if (req.query.end && isNaN(endDate)) {
-      logger.error('Invalid end date format:', req.query.end);
-      return res.status(400).json({ error: 'Invalid end date format' });
-    }
-    
-    // Default to last 30 days if no date range provided
-    if (!startDate) {
-      startDate = new Date();
-      startDate.setDate(startDate.getDate() - 30);
-    }
-    if (!endDate) {
-      endDate = new Date();
-    }
-    
-    // Ensure dates are at midnight for consistent comparison
-    startDate.setHours(0, 0, 0, 0);
-    endDate.setHours(23, 59, 59, 999);
-
-    logger.debug('Processing request with date range:', { startDate, endDate });
-    
-    // Build the query with date parameters
-    const request = pool.request()
-      .input('StartDate', sql.DateTime, startDate)
-      .input('EndDate', sql.DateTime, endDate);
-    
     // Query the view directly with NOLOCK hint
     const query = `
       SELECT 
@@ -248,13 +214,11 @@ app.get('/api/regional-performance', async (req, res) => {
         Saturday,
         Total_Week_Quantity
       FROM [dbo].[vw_Cumulative_Weekly_Region_Sales] WITH (NOLOCK)
-      WHERE Week_Start >= @StartDate
-      AND Week_End <= @EndDate
-      ORDER BY Week_End DESC, Region;
+      ORDER BY Week_Label DESC, Region;
     `;
     
-    logger.debug('Executing regional performance query with date range:', { startDate, endDate });
-    const result = await request.query(query);
+    logger.debug('Executing regional performance query');
+    const result = await pool.request().query(query);
     
     if (!result || !result.recordset) {
       logger.error('Query returned no recordset');
@@ -270,10 +234,6 @@ app.get('/api/regional-performance', async (req, res) => {
       regions: regions,
       metadata: {
         timestamp: new Date().toISOString(),
-        dateRange: {
-          start: startDate.toISOString(),
-          end: endDate.toISOString()
-        },
         rowCount: result.recordset.length
       }
     };

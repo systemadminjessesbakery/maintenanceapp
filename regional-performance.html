@@ -618,9 +618,9 @@
             data.forEach(row => {
                 if (!regionData[row.Region]) {
                     regionData[row.Region] = {
-                        weeks: {},
+                        totalQuantity: 0,
                         current: 0,
-                        totalQuantity: 0
+                        weeks: {}
                     };
                 }
                 regionData[row.Region].weeks[row.Week_Label] = row.Total_Week_Quantity;
@@ -630,23 +630,14 @@
                 }
             });
 
-            // Calculate region averages
-            Object.keys(regionData).forEach(region => {
-                const weekValues = weekLabels.map(week => regionData[region].weeks[week] || 0);
-                regionData[region].average = Math.round(
-                    weekValues.reduce((sum, val) => sum + val, 0) / weekValues.length
-                );
-            });
-
             // Sort and create rankings based on total quantity
             const sortedRegions = Object.entries(regionData)
                 .sort(([,a], [,b]) => b.totalQuantity - a.totalQuantity)
                 .map(([region, data]) => ({
                     name: region,
                     current: data.current,
-                    weeks: weekLabels.map(week => data.weeks[week] || 0),
-                    average: data.average,
-                    totalQuantity: data.totalQuantity
+                    totalQuantity: data.totalQuantity,
+                    weeks: weekLabels.map(week => data.weeks[week] || 0)
                 }));
 
             const topRegions = sortedRegions.slice(0, 5);
@@ -658,13 +649,9 @@
                         <span>${index + 1}</span>
                         <span>${item.name}</span>
                         <span class="${item.current > (item.weeks[1] || 0) ? 'trend-up' : 'trend-down'}">
-                            ${item.current.toLocaleString()}
+                            ${item.totalQuantity.toLocaleString()}
                             <i class="fas fa-arrow-${item.current > (item.weeks[1] || 0) ? 'up' : 'down'}"></i>
                         </span>
-                        ${item.weeks.slice(1, 4).map(qty => 
-                            `<span>${qty.toLocaleString()}</span>`
-                        ).join('')}
-                        <span>${item.average.toLocaleString()}</span>
                     </li>
                 `).join('');
             }
@@ -697,105 +684,58 @@
             updateRankings(data);
         }
 
-        function updateChart(data) {
-            const regions = [...new Set(data.map(row => row.Region))];
-            const weeks = [...new Set(data.map(row => row.Week_Label))].sort();
-            
-            // Update region selector
-            const regionSelect = document.getElementById('regionSelect');
-            const currentValue = regionSelect.value;
-            
-            // Clear existing options except the first one
-            while (regionSelect.options.length > 1) {
-                regionSelect.remove(1);
-            }
-            
-            // Add region options
-            regions.forEach(region => {
-                const option = document.createElement('option');
-                option.value = region;
-                option.textContent = region;
-                regionSelect.appendChild(option);
-            });
-            
-            // Restore selected value if it exists in the new options
-            if (currentValue && regions.includes(currentValue)) {
-                regionSelect.value = currentValue;
-            } else {
-                regionSelect.value = 'all';
-            }
-            
-            // Get selected region
-            const selectedRegion = regionSelect.value;
-            
-            // Create datasets for each day of the week
-            const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-            const datasets = [];
-            
-            // If "all" is selected, create a combined dataset
-            if (selectedRegion === 'all') {
-                // Calculate combined totals for each week and day
-                const combinedData = {};
-                weeks.forEach(week => {
-                    combinedData[week] = {
-                        Sunday: 0, Monday: 0, Tuesday: 0, Wednesday: 0, 
-                        Thursday: 0, Friday: 0, Saturday: 0
-                    };
-                    
-                    // Sum up values for each day across all regions
-                    data.filter(row => row.Week_Label === week).forEach(row => {
-                        days.forEach(day => {
-                            combinedData[week][day] += row[day] || 0;
-                        });
-                    });
-                });
-                
-                // Create a dataset for each day
-                days.forEach((day, dayIndex) => {
-                    const dayData = weeks.map(week => combinedData[week][day]);
-                    
-                    datasets.push({
-                        label: day,
-                        data: dayData,
-                        borderColor: `hsl(${dayIndex * 360 / days.length}, 70%, 50%)`,
-                        backgroundColor: `hsla(${dayIndex * 360 / days.length}, 70%, 50%, 0.1)`,
-                        borderDash: dayIndex === 0 ? [] : [5, 5], // Solid line for Sunday, dashed for other days
-                        fill: false,
-                        tension: 0.1
-                    });
-                });
-            } else {
-                // Filter data for selected region
-                const regionData = data.filter(row => row.Region === selectedRegion);
-                
-                // Create a dataset for each day
-                days.forEach((day, dayIndex) => {
-                    const dayData = weeks.map(week => {
-                        const weekData = regionData.find(row => row.Week_Label === week);
-                        return weekData ? weekData[day] : 0;
-                    });
-                    
-                    datasets.push({
-                        label: day,
-                        data: dayData,
-                        borderColor: `hsl(${dayIndex * 360 / days.length}, 70%, 50%)`,
-                        backgroundColor: `hsla(${dayIndex * 360 / days.length}, 70%, 50%, 0.1)`,
-                        borderDash: dayIndex === 0 ? [] : [5, 5], // Solid line for Sunday, dashed for other days
-                        fill: false,
-                        tension: 0.1
-                    });
-                });
+        function updateChart(selectedRegion = 'all') {
+            if (chart) {
+                chart.destroy();
             }
 
             const ctx = document.getElementById('performanceChart').getContext('2d');
-            if (window.chart) {
-                window.chart.destroy();
+            const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+            const weekLabels = [...new Set(allData.map(row => row.Week_Label))].sort().reverse();
+            const datasets = [];
+
+            if (selectedRegion === 'all') {
+                // Calculate combined totals for each day across all regions
+                days.forEach((day, index) => {
+                    const dayData = weekLabels.map(weekLabel => {
+                        const weekData = allData.filter(row => row.Week_Label === weekLabel);
+                        return weekData.reduce((sum, row) => sum + (row[day] || 0), 0);
+                    });
+
+                    datasets.push({
+                        label: day,
+                        data: dayData,
+                        borderColor: `hsl(${index * 360 / days.length}, 70%, 50%)`,
+                        backgroundColor: `hsla(${index * 360 / days.length}, 70%, 50%, 0.1)`,
+                        fill: false,
+                        tension: 0.1
+                    });
+                });
+            } else {
+                // Show data for selected region
+                days.forEach((day, index) => {
+                    const dayData = weekLabels.map(weekLabel => {
+                        const weekData = allData.find(row => 
+                            row.Week_Label === weekLabel && row.Region === selectedRegion
+                        );
+                        return weekData ? weekData[day] : 0;
+                    });
+
+                    datasets.push({
+                        label: day,
+                        data: dayData,
+                        borderColor: `hsl(${index * 360 / days.length}, 70%, 50%)`,
+                        backgroundColor: `hsla(${index * 360 / days.length}, 70%, 50%, 0.1)`,
+                        fill: false,
+                        tension: 0.1
+                    });
+                });
             }
 
-            window.chart = new Chart(ctx, {
+            chart = new Chart(ctx, {
                 type: 'line',
                 data: {
-                    labels: weeks,
+                    labels: weekLabels,
                     datasets: datasets
                 },
                 options: {
@@ -824,8 +764,7 @@
                                 : `${selectedRegion} Daily Performance`
                         },
                         legend: {
-                            position: 'bottom',
-                            maxHeight: 100
+                            position: 'bottom'
                         },
                         tooltip: {
                             mode: 'index',
