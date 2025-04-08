@@ -188,9 +188,7 @@ app.get('/api/regional-performance', async (req, res) => {
   res.set({
     'Cache-Control': 'no-store, no-cache, must-revalidate, private',
     'Pragma': 'no-cache',
-    'Expires': '0',
-    'Surrogate-Control': 'no-store',
-    'ETag': new Date().getTime().toString()
+    'Expires': '0'
   });
 
   if (!poolConnected) {
@@ -216,10 +214,10 @@ app.get('/api/regional-performance', async (req, res) => {
       return res.status(400).json({ error: 'Invalid end date format' });
     }
     
-    // Default to last 3 weeks if no date range provided
+    // Default to last 30 days if no date range provided
     if (!startDate) {
       startDate = new Date();
-      startDate.setDate(startDate.getDate() - 21);
+      startDate.setDate(startDate.getDate() - 30);
     }
     if (!endDate) {
       endDate = new Date();
@@ -236,41 +234,23 @@ app.get('/api/regional-performance', async (req, res) => {
       .input('StartDate', sql.DateTime, startDate)
       .input('EndDate', sql.DateTime, endDate);
     
-    // Query with NOLOCK hint and explicit column selection
+    // Query the view directly with NOLOCK hint
     const query = `
-      WITH WeeklyData AS (
-        SELECT 
-          DATEADD(day, -(DATEPART(weekday, Transaction_Date) - 1), Transaction_Date) as Week_Start,
-          DATEADD(day, 7-(DATEPART(weekday, Transaction_Date)), Transaction_Date) as Week_End,
-          Location as Region,
-          Description as Product_Description,
-          DATEPART(weekday, Transaction_Date) as DayOfWeek,
-          SUM(Quantity) as Daily_Quantity
-        FROM Combined_Sales_Data_Final WITH (NOLOCK)
-        WHERE Transaction_Date >= @StartDate
-        AND Transaction_Date <= @EndDate
-        AND Location IS NOT NULL
-        GROUP BY 
-          Location,
-          Description,
-          Transaction_Date,
-          DATEPART(weekday, Transaction_Date)
-      )
       SELECT 
-        CONVERT(varchar, Week_Start, 23) + ' - ' + CONVERT(varchar, Week_End, 23) as Week_Label,
+        Week_Label,
         Region,
-        Product_Description,
-        SUM(CASE WHEN DayOfWeek = 1 THEN Daily_Quantity ELSE 0 END) as Sunday,
-        SUM(CASE WHEN DayOfWeek = 2 THEN Daily_Quantity ELSE 0 END) as Monday,
-        SUM(CASE WHEN DayOfWeek = 3 THEN Daily_Quantity ELSE 0 END) as Tuesday,
-        SUM(CASE WHEN DayOfWeek = 4 THEN Daily_Quantity ELSE 0 END) as Wednesday,
-        SUM(CASE WHEN DayOfWeek = 5 THEN Daily_Quantity ELSE 0 END) as Thursday,
-        SUM(CASE WHEN DayOfWeek = 6 THEN Daily_Quantity ELSE 0 END) as Friday,
-        SUM(CASE WHEN DayOfWeek = 7 THEN Daily_Quantity ELSE 0 END) as Saturday,
-        SUM(Daily_Quantity) as Total_Week_Quantity
-      FROM WeeklyData
-      GROUP BY Week_Start, Week_End, Region, Product_Description
-      ORDER BY Week_End DESC, Region, Product_Description;
+        Sunday,
+        Monday,
+        Tuesday,
+        Wednesday,
+        Thursday,
+        Friday,
+        Saturday,
+        Total_Week_Quantity
+      FROM [dbo].[vw_Cumulative_Weekly_Region_Sales] WITH (NOLOCK)
+      WHERE Week_Start >= @StartDate
+      AND Week_End <= @EndDate
+      ORDER BY Week_End DESC, Region;
     `;
     
     logger.debug('Executing regional performance query with date range:', { startDate, endDate });
@@ -281,25 +261,20 @@ app.get('/api/regional-performance', async (req, res) => {
       throw new Error('Invalid query result structure');
     }
     
-    if (result.recordset.length === 0) {
-      logger.info('No data found for date range:', { startDate, endDate });
-      return res.status(404).json({
-        message: 'No regional performance data found for the selected date range',
-        dateRange: { startDate, endDate }
-      });
-    }
+    // Get unique regions for the selector
+    const regions = [...new Set(result.recordset.map(row => row.Region))];
     
     // Add metadata to help client verify freshness
     const response = {
       data: result.recordset,
+      regions: regions,
       metadata: {
         timestamp: new Date().toISOString(),
         dateRange: {
           start: startDate.toISOString(),
           end: endDate.toISOString()
         },
-        rowCount: result.recordset.length,
-        queryExecutionTime: new Date().getTime()
+        rowCount: result.recordset.length
       }
     };
     

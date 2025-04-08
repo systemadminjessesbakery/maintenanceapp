@@ -381,7 +381,7 @@
                 <div class="ranking-header">
                     <span></span>
                     <span>Region</span>
-                    <span>Current</span>
+                    <span>Current Week</span>
                     <span>Week -1</span>
                     <span>Week -2</span>
                     <span>Week -3</span>
@@ -399,7 +399,7 @@
                 <div class="ranking-header">
                     <span></span>
                     <span>Region</span>
-                    <span>Current</span>
+                    <span>Current Week</span>
                     <span>Week -1</span>
                     <span>Week -2</span>
                     <span>Week -3</span>
@@ -619,10 +619,12 @@
                 if (!regionData[row.Region]) {
                     regionData[row.Region] = {
                         weeks: {},
-                        current: 0
+                        current: 0,
+                        totalQuantity: 0
                     };
                 }
                 regionData[row.Region].weeks[row.Week_Label] = row.Total_Week_Quantity;
+                regionData[row.Region].totalQuantity += row.Total_Week_Quantity;
                 if (row.Week_Label === weekLabels[0]) {
                     regionData[row.Region].current = row.Total_Week_Quantity;
                 }
@@ -636,64 +638,30 @@
                 );
             });
 
-            // Process product rankings
-            const productData = {};
-            data.forEach(row => {
-                if (!productData[row.Product_Description]) {
-                    productData[row.Product_Description] = {
-                        weeks: {},
-                        current: 0
-                    };
-                }
-                const existingQty = productData[row.Product_Description].weeks[row.Week_Label] || 0;
-                productData[row.Product_Description].weeks[row.Week_Label] = existingQty + row.Total_Week_Quantity;
-                if (row.Week_Label === weekLabels[0]) {
-                    productData[row.Product_Description].current = (productData[row.Product_Description].current || 0) + row.Total_Week_Quantity;
-                }
-            });
-
-            // Calculate product averages
-            Object.keys(productData).forEach(product => {
-                const weekValues = weekLabels.map(week => productData[product].weeks[week] || 0);
-                productData[product].average = Math.round(
-                    weekValues.reduce((sum, val) => sum + val, 0) / weekValues.length
-                );
-            });
-
-            // Sort and create rankings
+            // Sort and create rankings based on total quantity
             const sortedRegions = Object.entries(regionData)
-                .sort(([,a], [,b]) => b.current - a.current)
+                .sort(([,a], [,b]) => b.totalQuantity - a.totalQuantity)
                 .map(([region, data]) => ({
                     name: region,
                     current: data.current,
                     weeks: weekLabels.map(week => data.weeks[week] || 0),
-                    average: data.average
-                }));
-
-            const sortedProducts = Object.entries(productData)
-                .sort(([,a], [,b]) => b.current - a.current)
-                .map(([product, data]) => ({
-                    name: product,
-                    current: data.current,
-                    weeks: weekLabels.map(week => data.weeks[week] || 0),
-                    average: data.average
+                    average: data.average,
+                    totalQuantity: data.totalQuantity
                 }));
 
             const topRegions = sortedRegions.slice(0, 5);
             const bottomRegions = sortedRegions.slice(-5).reverse();
-            const topProducts = sortedProducts.slice(0, 5);
-            const bottomProducts = sortedProducts.slice(-5).reverse();
 
             function createRankingHTML(items, isTop) {
                 return items.map((item, index) => `
                     <li class="ranking-item">
                         <span>${index + 1}</span>
                         <span>${item.name}</span>
-                        <span class="${item.current > item.weeks[1] ? 'trend-up' : 'trend-down'}">
+                        <span class="${item.current > (item.weeks[1] || 0) ? 'trend-up' : 'trend-down'}">
                             ${item.current.toLocaleString()}
-                            <i class="fas fa-arrow-${item.current > item.weeks[1] ? 'up' : 'down'}"></i>
+                            <i class="fas fa-arrow-${item.current > (item.weeks[1] || 0) ? 'up' : 'down'}"></i>
                         </span>
-                        ${item.weeks.slice(1).map(qty => 
+                        ${item.weeks.slice(1, 4).map(qty => 
                             `<span>${qty.toLocaleString()}</span>`
                         ).join('')}
                         <span>${item.average.toLocaleString()}</span>
@@ -703,8 +671,6 @@
 
             document.getElementById('topRegions').innerHTML = createRankingHTML(topRegions, true);
             document.getElementById('bottomRegions').innerHTML = createRankingHTML(bottomRegions, false);
-            document.getElementById('topProducts').innerHTML = createRankingHTML(topProducts, true);
-            document.getElementById('bottomProducts').innerHTML = createRankingHTML(bottomProducts, false);
         }
 
         function renderData(data) {
