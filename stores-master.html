@@ -1041,6 +1041,8 @@
 
             const updates = {};
             const cells = editingRow.getElementsByTagName('td');
+            const requiredFields = ['STORE_NAME', 'REGION'];
+            const missingFields = [];
 
             // Gather changes
             for (let i = 0; i < cells.length - 1; i++) {
@@ -1053,7 +1055,6 @@
                         const checkbox = cell.querySelector('input[type="checkbox"]');
                         newValue = checkbox ? (checkbox.checked ? 'TRUE' : 'FALSE') : 'FALSE';
                         
-                        // If special day is checked, ensure corresponding day is also set to TRUE
                         if ((column === 'SPECIAL_FRIDAY' || column === 'SPECIAL_SUNDAY') && newValue === 'TRUE') {
                             const dayColumn = column === 'SPECIAL_FRIDAY' ? 'FRIDAY' : 'SUNDAY';
                             updates[dayColumn] = 'TRUE';
@@ -1070,12 +1071,24 @@
                         }
                     } else {
                         const input = cell.querySelector('input');
-                        newValue = input ? input.value : '';
+                        newValue = input ? input.value.trim() : '';
+                        
+                        // Check required fields
+                        if (requiredFields.includes(column) && !newValue) {
+                            missingFields.push(column.replace(/_/g, ' ').toLowerCase());
+                        }
+                        
                         if (newValue !== originalData[column]) {
                             updates[column] = newValue;
                         }
                     }
                 }
+            }
+
+            // Validate required fields
+            if (missingFields.length > 0) {
+                showStatusMessage(`Please fill in required fields: ${missingFields.join(', ')}`, false);
+                return;
             }
 
             if (Object.keys(updates).length === 0) {
@@ -1099,6 +1112,7 @@
 
                 showStatusMessage('Changes saved successfully', true);
                 await fetchData(); // Refresh the table
+                cancelEditing(); // Exit edit mode after successful save
             } catch (error) {
                 console.error('Error saving changes:', error);
                 showStatusMessage(error.message, false);
