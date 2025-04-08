@@ -1,0 +1,5 @@
+[33mcommit d9bf5d6ea9912ffeb8315e1effbfa54687c8b3ac[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m)[m
+Author: Deployment <deployment@jessebakery.com>
+Date:   Tue Apr 8 20:14:24 2025 +1000
+
+    Fix regional performance data refresh and improve error handling

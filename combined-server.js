@@ -185,13 +185,13 @@ app.get('/api/regional-performance', async (req, res) => {
   }
   
   try {
-    // Extract date parameters (same as actual-sales endpoint)
+    // Extract date parameters
     const startDate = req.query.start || null;
     const endDate = req.query.end || null;
     
-    // Default to 30 days if no date range provided
+    // Default to last 3 weeks if no date range provided
     const defaultStartDate = new Date();
-    defaultStartDate.setDate(defaultStartDate.getDate() - 30);
+    defaultStartDate.setDate(defaultStartDate.getDate() - 21); // 3 weeks
     const defaultEndDate = new Date();
     
     // Build the query with date parameters
@@ -209,12 +209,23 @@ app.get('/api/regional-performance', async (req, res) => {
       request.input('EndDate', sql.Date, defaultEndDate);
     }
     
-    // Query the view directly with NOLOCK hint to ensure fresh data
+    // Query the view with proper column names
     const result = await request.query(`
-      SELECT * FROM [dbo].[vw_Cumulative_Weekly_Region_Sales] WITH (NOLOCK)
-      WHERE Transaction_Date >= @StartDate
-      AND Transaction_Date <= @EndDate
-      ORDER BY Week_End DESC, Region, Product_Description;
+      SELECT 
+        Week_Label,
+        Region,
+        Sunday,
+        Monday,
+        Tuesday,
+        Wednesday,
+        Thursday,
+        Friday,
+        Saturday,
+        Total_Week_Quantity
+      FROM [dbo].[vw_Cumulative_Weekly_Region_Sales] WITH (NOLOCK)
+      WHERE Week_Label >= CONVERT(varchar, @StartDate, 23)
+      AND Week_Label <= CONVERT(varchar, @EndDate, 23)
+      ORDER BY Week_Label DESC, Region;
     `);
     
     logger.debug(`Regional performance query returned ${result.recordset.length} rows`);
@@ -513,10 +524,10 @@ app.put('/api/stores/:storeId', async (req, res) => {
     }
 
     // Validate required fields if they are being updated
-    if (updates.Store_Name === '') {
+    if ('Store_Name' in updates && !updates.Store_Name) {
       return res.status(400).json({ error: 'Store Name cannot be empty' });
     }
-    if (updates.Region === '') {
+    if ('Region' in updates && !updates.Region) {
       return res.status(400).json({ error: 'Region cannot be empty' });
     }
 
@@ -525,24 +536,28 @@ app.put('/api/stores/:storeId', async (req, res) => {
 
     // Build dynamic update query based on provided fields
     const updateFields = [];
+    const booleanFields = [
+      'SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 
+      'FRIDAY', 'SATURDAY', 'SPECIAL_FRIDAY', 'SPECIAL_SUNDAY'
+    ];
+
     for (const [key, value] of Object.entries(updates)) {
       if (key === 'Store_ID') continue; // Skip Store_ID as it's the identifier
 
-      if (['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SPECIAL_FRIDAY', 'SPECIAL_SUNDAY'].includes(key)) {
-        // Handle boolean fields - convert string 'TRUE'/'FALSE' to bit 1/0
-        const boolValue = value === 'TRUE' ? 1 : 0;
+      if (booleanFields.includes(key)) {
+        // Handle boolean fields
+        const boolValue = value === true || value === 'TRUE' || value === '1' || value === 1 ? 1 : 0;
         request.input(key, sql.Bit, boolValue);
         updateFields.push(`${key} = @${key}`);
-      } else if (value === null || value === undefined) {
-        // Skip null/undefined values
-        continue;
-      } else if (typeof value === 'string') {
-        // Handle string fields
-        request.input(key, sql.NVarChar(500), value.trim());
-        updateFields.push(`${key} = @${key}`);
+      } else if (value === null || value === undefined || value === '') {
+        // Handle null/empty values for non-required fields
+        if (key !== 'Store_Name' && key !== 'Region') {
+          request.input(key, sql.NVarChar(500), null);
+          updateFields.push(`${key} = @${key}`);
+        }
       } else {
-        // Handle other types
-        request.input(key, sql.NVarChar(500), value.toString());
+        // Handle string and other fields
+        request.input(key, sql.NVarChar(500), value.toString().trim());
         updateFields.push(`${key} = @${key}`);
       }
     }
@@ -568,8 +583,16 @@ app.put('/api/stores/:storeId', async (req, res) => {
       logger.info(`Store ${storeId} updated successfully`);
       res.json(result.recordset[0]);
     } else {
-      logger.warn(`Store ${storeId} update succeeded but no rows returned`);
-      res.json({ message: 'Store updated successfully' });
+      // If no rows were returned but the update succeeded, fetch the updated store
+      const updatedStore = await pool.request()
+        .input('Store_ID', sql.VarChar(50), storeId)
+        .query('SELECT * FROM Stores_Master WHERE Store_ID = @Store_ID');
+      
+      if (updatedStore.recordset.length > 0) {
+        res.json(updatedStore.recordset[0]);
+      } else {
+        res.status(404).json({ error: 'Store not found after update' });
+      }
     }
   } catch (err) {
     logger.error(`Error updating store ${storeId}:`, err);
