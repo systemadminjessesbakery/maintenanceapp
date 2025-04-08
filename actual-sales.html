@@ -828,7 +828,7 @@
             
             try {
                 // Add cache-busting parameter and proper headers
-                const currentWeekResponse = await fetch(`/api/actual-sales?start=${startDate}&end=${endDate}&_=${Date.now()}`, {
+                const currentWeekResponse = await fetch(`/api/actual-sales?startDate=${startDate}&endDate=${endDate}&_=${Date.now()}`, {
                     method: 'GET',
                     headers: {
                         'Content-Type': 'application/json',
@@ -856,7 +856,7 @@
                 const historicalStart = new Date(startDate);
                 historicalStart.setDate(historicalStart.getDate() - 21); // 3 weeks back
 
-                const historicalResponse = await fetch(`/api/actual-sales?start=${historicalStart.toISOString().split('T')[0]}&end=${endDate}&_=${Date.now()}`, {
+                const historicalResponse = await fetch(`/api/actual-sales?startDate=${historicalStart.toISOString().split('T')[0]}&endDate=${endDate}&_=${Date.now()}`, {
                     method: 'GET',
                     headers: {
                         'Content-Type': 'application/json',
@@ -875,7 +875,7 @@
                 }
 
                 // Render current week data in table and summary
-                renderSalesData(currentWeekData.data);
+                renderSalesData(currentWeekData.data, startDate, endDate);
                 updateSummary(currentWeekData.data, window.historicalData);
             } catch (error) {
                 console.error('Error fetching sales data:', error);
@@ -914,21 +914,23 @@
             `;
         }
 
-        function renderSalesData(data) {
+        function renderSalesData(data, startDate, endDate) {
             if (!data || !Array.isArray(data) || data.length === 0) {
                 showNoData();
                 return;
             }
 
             try {
-                // Get unique dates and sort them
-                const dates = [...new Set(data.map(sale => {
-                    const date = sale.Transaction_Date;
-                    return typeof date === 'string' ? date.split('T')[0] : '';
-                }))].filter(date => date).sort();
+                // Create date range array from start to end date
+                const dateRange = [];
+                const start = new Date(startDate);
+                const end = new Date(endDate);
+                for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+                    dateRange.push(d.toISOString().split('T')[0]);
+                }
                 
-                if (dates.length === 0) {
-                    showError('No valid dates found in the data');
+                if (dateRange.length === 0) {
+                    showError('Invalid date range selected');
                     return;
                 }
 
@@ -946,9 +948,15 @@
                             Source: sale.Source || 'N/A',
                             dates: {}
                         });
+                        // Initialize all dates with 0
+                        dateRange.forEach(date => {
+                            salesMap.get(key).dates[date] = 0;
+                        });
                     }
                     const dateKey = sale.Transaction_Date.split('T')[0];
-                    salesMap.get(key).dates[dateKey] = (salesMap.get(key).dates[dateKey] || 0) + (sale.Quantity || 0);
+                    if (dateRange.includes(dateKey)) {
+                        salesMap.get(key).dates[dateKey] = (salesMap.get(key).dates[dateKey] || 0) + (sale.Quantity || 0);
+                    }
                 });
 
                 // Update table header with date columns and day names
@@ -958,7 +966,7 @@
                     <th>Location<i class="fas fa-filter filter-icon" onclick="showFilter('location', this)"></i></th>
                     <th>Product<i class="fas fa-filter filter-icon" onclick="showFilter('product', this)"></i></th>
                     <th>Source<i class="fas fa-filter filter-icon" onclick="showFilter('source', this)"></i></th>
-                    ${dates.map(date => {
+                    ${dateRange.map(date => {
                         const dayName = new Date(date).toLocaleDateString('en-US', { weekday: 'short' });
                         return `<th class="date-header">
                             ${new Date(date).toLocaleDateString()}
@@ -973,14 +981,14 @@
                 tableBody.innerHTML = Array.from(salesMap.values())
                     .sort((a, b) => a.Store_Name.localeCompare(b.Store_Name))
                     .map(item => {
-                        const rowTotal = dates.reduce((sum, date) => sum + (item.dates[date] || 0), 0);
+                        const rowTotal = dateRange.reduce((sum, date) => sum + (item.dates[date] || 0), 0);
                         return `
                             <tr>
                                 <td>${item.Store_Name}</td>
                                 <td>${item.Location}</td>
                                 <td>${item.Description}</td>
                                 <td>${item.Source}</td>
-                                ${dates.map(date => `<td>${(item.dates[date] || 0).toLocaleString()}</td>`).join('')}
+                                ${dateRange.map(date => `<td>${(item.dates[date] || 0).toLocaleString()}</td>`).join('')}
                                 <td class="total-column">${rowTotal.toLocaleString()}</td>
                             </tr>
                         `;
