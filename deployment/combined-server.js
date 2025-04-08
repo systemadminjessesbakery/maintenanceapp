@@ -431,8 +431,7 @@ app.post('/api/stores', async (req, res) => {
         SPECIAL_FRIDAY, SPECIAL_SUNDAY,
         INVOICED, XERO_CODE, XERO_CUSTOMERID,
         SUN_OVERRIDE, MON_OVERRIDE, TUE_OVERRIDE, WED_OVERRIDE,
-        THU_OVERRIDE, FRI_OVERRIDE, SAT_OVERRIDE,
-        Created_At
+        THU_OVERRIDE, FRI_OVERRIDE, SAT_OVERRIDE
       )
       VALUES (
         @Store_ID, @Store_Name, @Region, @State, @Active, @Address, @Supplier_Code,
@@ -441,8 +440,7 @@ app.post('/api/stores', async (req, res) => {
         @SPECIAL_FRIDAY, @SPECIAL_SUNDAY,
         @INVOICED, @XERO_CODE, @XERO_CUSTOMERID,
         @SUN_OVERRIDE, @MON_OVERRIDE, @TUE_OVERRIDE, @WED_OVERRIDE,
-        @THU_OVERRIDE, @FRI_OVERRIDE, @SAT_OVERRIDE,
-        GETDATE()
+        @THU_OVERRIDE, @FRI_OVERRIDE, @SAT_OVERRIDE
       );
       
       SELECT * FROM Stores_Master WHERE Store_ID = @Store_ID;
@@ -887,7 +885,7 @@ app.get('/api/verify-schema', async (req, res) => {
           ORDINAL_POSITION;
       `);
     
-    // Expected columns from your query
+    // Expected columns from the actual database schema
     const expectedColumns = [
       'Store_ID', 'Store_Name', 'Region', 'State', 'Active',
       'Run_ID', 'Shelf_Limit', 'Latitude', 'Longitude',
