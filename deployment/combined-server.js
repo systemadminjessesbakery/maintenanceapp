@@ -567,7 +567,8 @@ app.put('/api/stores/:storeId', async (req, res) => {
 
     const query = `
       UPDATE Stores_Master 
-      SET ${updateFields.join(', ')}
+      SET ${updateFields.join(', ')},
+          Updated_At = GETDATE()
       WHERE Store_ID = @Store_ID;
       
       SELECT * FROM Stores_Master WHERE Store_ID = @Store_ID;
