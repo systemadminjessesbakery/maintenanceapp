@@ -1249,6 +1249,171 @@ app.delete('/api/adjustments/:adjustmentId', async (req, res) => {
   }
 });
 
+// Add a safer update endpoint for stores
+app.post('/api/stores/:storeId/update-safe', async (req, res) => {
+  const storeId = req.params.storeId;
+  const updates = req.body;
+  logger.debug(`Received request to safely update store ID: ${storeId}`);
+  logger.debug(`Update safe payload:`, updates);
+
+  if (!poolConnected) {
+    return res.status(503).json({
+      error: 'Database not connected',
+      message: 'The database connection is not available'
+    });
+  }
+
+  try {
+    // Validate store exists
+    const storeCheck = await pool.request()
+      .input('Store_ID', sql.VarChar(50), storeId)
+      .query('SELECT Store_ID FROM Stores_Master WHERE Store_ID = @Store_ID');
+    
+    if (storeCheck.recordset.length === 0) {
+      return res.status(404).json({ error: 'Store not found' });
+    }
+
+    // Get table schema to check for existence of columns
+    const schemaQuery = `
+      SELECT COLUMN_NAME, DATA_TYPE
+      FROM INFORMATION_SCHEMA.COLUMNS 
+      WHERE TABLE_NAME = 'Stores_Master'
+    `;
+    const schemaResult = await pool.request().query(schemaQuery);
+    const schema = {};
+    
+    // Build a schema map for data type checking
+    schemaResult.recordset.forEach(col => {
+      schema[col.COLUMN_NAME] = col.DATA_TYPE;
+    });
+    
+    logger.debug('Schema types for Stores_Master:', schema);
+
+    // Validate required fields
+    if (!updates.Store_Name || updates.Store_Name.trim() === '') {
+      return res.status(400).json({ error: 'Store Name cannot be empty' });
+    }
+    if (!updates.Region || updates.Region.trim() === '') {
+      return res.status(400).json({ error: 'Region cannot be empty' });
+    }
+
+    const request = pool.request()
+      .input('Store_ID', sql.VarChar(50), storeId);
+
+    // Build dynamic update query based on provided fields with proper type handling
+    const updateFields = [];
+    const validColumns = Object.keys(schema);
+    
+    for (const [key, value] of Object.entries(updates)) {
+      if (key === 'Store_ID') continue; // Skip ID as it's the identifier
+      
+      // Skip fields that don't exist in the table
+      if (!validColumns.includes(key)) {
+        logger.debug(`Skipping field ${key} as it doesn't exist in the table`);
+        continue;
+      }
+
+      // Handle each type appropriately based on schema
+      const dataType = schema[key];
+      logger.debug(`Setting parameter for ${key} with type ${dataType} and value ${value}`);
+      
+      if (dataType === 'bit' || ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SPECIAL_FRIDAY', 'SPECIAL_SUNDAY'].includes(key)) {
+        // Handle boolean fields
+        const boolValue = value === true || value === 'TRUE' || value === '1' || value === 1;
+        request.input(key, sql.Bit, boolValue ? 1 : 0);
+        updateFields.push(`${key} = @${key}`);
+      } 
+      else if (dataType.includes('char') || dataType.includes('text')) {
+        // Handle string fields
+        request.input(key, sql.NVarChar(500), value === null || value === undefined ? null : String(value).trim());
+        updateFields.push(`${key} = @${key}`);
+      }
+      else if (dataType.includes('int')) {
+        // Handle numeric fields
+        let numValue = null;
+        if (value !== null && value !== undefined && value !== '') {
+          numValue = parseInt(value, 10);
+          if (isNaN(numValue)) {
+            return res.status(400).json({ error: `Invalid number value for field ${key}` });
+          }
+        }
+        request.input(key, sql.Int, numValue);
+        updateFields.push(`${key} = @${key}`);
+      }
+      else if (dataType.includes('decimal') || dataType.includes('numeric') || dataType.includes('float')) {
+        // Handle decimal fields
+        let numValue = null;
+        if (value !== null && value !== undefined && value !== '') {
+          numValue = parseFloat(value);
+          if (isNaN(numValue)) {
+            return res.status(400).json({ error: `Invalid decimal value for field ${key}` });
+          }
+        }
+        request.input(key, sql.Decimal(18, 2), numValue);
+        updateFields.push(`${key} = @${key}`);
+      }
+      else if (dataType.includes('date') || dataType.includes('time')) {
+        // Handle date fields
+        let dateValue = null;
+        if (value && value !== '') {
+          try {
+            dateValue = new Date(value);
+            if (isNaN(dateValue.getTime())) {
+              throw new Error('Invalid date');
+            }
+          } catch (e) {
+            return res.status(400).json({ error: `Invalid date format for field ${key}` });
+          }
+        }
+        request.input(key, sql.DateTime, dateValue);
+        updateFields.push(`${key} = @${key}`);
+      }
+      else {
+        // Handle other fields as strings
+        request.input(key, sql.NVarChar(500), value === null || value === undefined ? null : String(value));
+        updateFields.push(`${key} = @${key}`);
+      }
+    }
+
+    if (updateFields.length === 0) {
+      return res.status(400).json({ error: 'No valid fields to update' });
+    }
+
+    // Add automatic timestamp update
+    updateFields.push('Updated_At = GETDATE()');
+
+    const query = `
+      UPDATE Stores_Master 
+      SET ${updateFields.join(', ')}
+      WHERE Store_ID = @Store_ID;
+      
+      SELECT * FROM Stores_Master WHERE Store_ID = @Store_ID;
+    `;
+
+    logger.debug('Executing safe update query:', query);
+    const result = await request.query(query);
+    logger.info(`Store ${storeId} updated successfully via safe endpoint`);
+    
+    if (result.recordset.length > 0) {
+      // Filter out timestamp fields from response
+      const { Created_At, Updated_At, ...cleanStore } = result.recordset[0];
+      res.json({
+        message: 'Store updated successfully',
+        data: cleanStore
+      });
+    } else {
+      res.json({ message: 'Store updated successfully' });
+    }
+  } catch (err) {
+    logger.error(`Error in safe update for store ${storeId}:`, err);
+    res.status(500).json({ 
+      error: 'Error updating store',
+      details: err.message,
+      query: err.procName
+    });
+  }
+});
+
 // Serve static files with cache busting
 app.use(express.static(__dirname, {
   etag: false,

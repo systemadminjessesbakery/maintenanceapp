@@ -484,6 +484,59 @@
             color: #999;
             margin-top: 5px;
         }
+        .checkbox-group {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 10px;
+            margin-top: 5px;
+        }
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            cursor: pointer;
+        }
+        .checkbox-label:hover {
+            color: #4CAF50;
+        }
+        .edit-form {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 15px rgba(0,0,0,0.3);
+            z-index: 1001;
+            max-height: 85vh;
+            overflow-y: auto;
+            width: 80%;
+            max-width: 600px;
+        }
+        .edit-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0,0,0,0.5);
+            z-index: 1000;
+        }
+        .edit-result {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 4px;
+            display: none;
+        }
+        .edit-success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .edit-error {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
     </style>
 </head>
 <body>
@@ -1066,248 +1119,274 @@
         }
 
         function startEditing(row) {
-            if (editingRow && editingRow !== row) {
-                cancelEditing();
-            }
-            
-            editingRow = row;
             const storeId = row.dataset.storeId;
             
-            // Initialize originalData by fetching current values from server
-            fetchStoreById(storeId)
-                .then(data => {
-                    console.log(`Fetched original data for store ${storeId}:`, data);
-                    originalData = data;
-                    completeStartEditing(row);
+            // Show loader in status message
+            showStatusMessage('Loading store data...', true);
+            
+            // Fetch current store data
+            fetch(`/api/stores/${storeId}`)
+                .then(response => {
+                    if (!response.ok) throw new Error(`Failed to fetch store data (${response.status})`);
+                    return response.json();
+                })
+                .then(storeData => {
+                    // Open edit form with the data
+                    showEditForm(storeData);
+                    // Clear status message
+                    setTimeout(() => hideStatusMessage(), 500);
                 })
                 .catch(error => {
-                    console.error(`Error fetching store ${storeId} data:`, error);
-                    showStatusMessage(`Error starting edit: ${error.message}`, false);
-                    editingRow = null;
+                    console.error('Error fetching store data:', error);
+                    showStatusMessage(`Error: ${error.message}`, false);
                 });
         }
         
-        function completeStartEditing(row) {
-            const cells = row.getElementsByTagName('td');
+        function showEditForm(storeData) {
+            const formContainer = document.getElementById('newRowFormContainer');
             
-            for (let i = 0; i < cells.length - 1; i++) {
-                const cell = cells[i];
-                if (cell.dataset.editable === 'true') {
-                    const column = cell.dataset.column;
-                    if (cell.dataset.isCheckbox === 'true') {
-                        const checkbox = cell.querySelector('input[type="checkbox"]');
-                        if (checkbox) {
-                            originalData[column] = checkbox.checked;
-                            checkbox.disabled = false;
-
-                            // Add event listeners for special day checkboxes
-                            if (column === 'SPECIAL_FRIDAY' || column === 'SPECIAL_SUNDAY') {
-                                checkbox.addEventListener('change', function() {
-                                    const dayToCheck = column === 'SPECIAL_FRIDAY' ? 'FRIDAY' : 'SUNDAY';
-                                    const dayCell = Array.from(cells).find(c => c.dataset.column === dayToCheck);
-                                    if (dayCell) {
-                                        const dayCheckbox = dayCell.querySelector('input[type="checkbox"]');
-                                        if (dayCheckbox) {
-                                            dayCheckbox.checked = this.checked;
-                                        }
-                                    }
-                                });
-                            }
-                        }
-                    } else if (cell.dataset.isOverride === 'true') {
-                        // Create dropdown for override fields
-                        const value = cell.textContent;
-                        originalData[column] = value;
-                        
-                        const select = document.createElement('select');
-                        select.className = 'editable';
-                        
-                        const emptyOption = document.createElement('option');
-                        emptyOption.value = '';
-                        emptyOption.textContent = '-- Select --';
-                        select.appendChild(emptyOption);
-                        
-                        regions.forEach(region => {
-                            const option = document.createElement('option');
-                            option.value = region;
-                            option.textContent = region;
-                            if (region === value) {
-                                option.selected = true;
-                            }
-                            select.appendChild(option);
-                        });
-                        
-                        cell.innerHTML = '';
-                        cell.appendChild(select);
-                    } else {
-                        // Regular text input for other fields
-                        const value = cell.textContent;
-                        originalData[column] = value;
-                        cell.innerHTML = `<input type="text" value="${value}" class="editable">`;
-                    }
-                    cell.classList.add('editable');
-                }
-            }
-
-            // Replace edit button with save/cancel buttons
-            const actionCell = cells[cells.length - 1];
-            actionCell.innerHTML = `
-                <button class="btn btn-save" onclick="saveChanges('${row.dataset.storeId}')">Save</button>
-                <button class="btn btn-cancel" onclick="cancelEditing()">Cancel</button>
+            // HTML escape function for safety
+            const escapeHTML = (str) => str ? String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;') : '';
+            
+            // Create the form HTML with proper escaping
+            const formHtml = `
+                <div class="edit-overlay">
+                    <div class="edit-form">
+                        <h2>Edit Store: ${escapeHTML(storeData.Store_Name)}</h2>
+                        <form id="editStoreForm">
+                            <input type="hidden" id="edit_Store_ID" value="${escapeHTML(storeData.Store_ID)}">
+                            
+                            <div class="form-group">
+                                <label for="edit_Store_Name">Store Name*</label>
+                                <input type="text" id="edit_Store_Name" value="${escapeHTML(storeData.Store_Name || '')}" required maxlength="255">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="edit_Region">Region*</label>
+                                <select id="edit_Region" required>
+                                    <option value="">-- Select Region --</option>
+                                    ${regions.map(region => 
+                                        `<option value="${escapeHTML(region)}" ${region === storeData.Region ? 'selected' : ''}>${escapeHTML(region)}</option>`
+                                    ).join('')}
+                                </select>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="edit_State">State*</label>
+                                <input type="text" id="edit_State" value="${escapeHTML(storeData.State || '')}" required maxlength="50">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="edit_Active">Active*</label>
+                                <select id="edit_Active" required>
+                                    <option value="Active" ${storeData.Active === 'Active' ? 'selected' : ''}>Active</option>
+                                    <option value="Inactive" ${storeData.Active === 'Inactive' ? 'selected' : ''}>Inactive</option>
+                                </select>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="edit_Address">Address</label>
+                                <input type="text" id="edit_Address" value="${escapeHTML(storeData.Address || '')}" maxlength="255">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="edit_Supplier_Code">Supplier Code</label>
+                                <input type="text" id="edit_Supplier_Code" value="${escapeHTML(storeData.Supplier_Code || '')}" maxlength="50">
+                            </div>
+                            
+                            <div class="form-group day-checkboxes">
+                                <label>Trading Days</label>
+                                <div class="checkbox-group">
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="edit_SUNDAY" ${storeData.SUNDAY === 'TRUE' ? 'checked' : ''}>
+                                        Sunday
+                                    </label>
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="edit_MONDAY" ${storeData.MONDAY === 'TRUE' ? 'checked' : ''}>
+                                        Monday
+                                    </label>
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="edit_TUESDAY" ${storeData.TUESDAY === 'TRUE' ? 'checked' : ''}>
+                                        Tuesday
+                                    </label>
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="edit_WEDNESDAY" ${storeData.WEDNESDAY === 'TRUE' ? 'checked' : ''}>
+                                        Wednesday
+                                    </label>
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="edit_THURSDAY" ${storeData.THURSDAY === 'TRUE' ? 'checked' : ''}>
+                                        Thursday
+                                    </label>
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="edit_FRIDAY" ${storeData.FRIDAY === 'TRUE' ? 'checked' : ''}>
+                                        Friday
+                                    </label>
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="edit_SATURDAY" ${storeData.SATURDAY === 'TRUE' ? 'checked' : ''}>
+                                        Saturday
+                                    </label>
+                                </div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="edit_SPECIAL_FRIDAY" ${storeData.SPECIAL_FRIDAY === 'TRUE' ? 'checked' : ''}>
+                                    Special Friday
+                                </label>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="edit_SPECIAL_SUNDAY" ${storeData.SPECIAL_SUNDAY === 'TRUE' ? 'checked' : ''}>
+                                    Special Sunday
+                                </label>
+                            </div>
+                            
+                            <div id="edit-result" class="edit-result"></div>
+                            
+                            <div class="form-buttons">
+                                <button type="button" class="btn btn-cancel" onclick="closeEditForm()">Cancel</button>
+                                <button type="submit" class="btn btn-save">Save Changes</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
             `;
-        }
-
-        function cancelEditing() {
-            if (!editingRow) return;
-
-            const cells = editingRow.getElementsByTagName('td');
             
-            // Restore original values
-            for (let i = 0; i < cells.length - 1; i++) {
-                const cell = cells[i];
-                if (cell.dataset.editable === 'true') {
-                    const column = cell.dataset.column;
-                    if (cell.dataset.isCheckbox === 'true') {
-                        // Disable checkbox and restore original state
-                        const checkbox = cell.querySelector('input[type="checkbox"]');
-                        if (checkbox) {
-                            checkbox.checked = originalData[column];
-                            checkbox.disabled = true;
-                        }
-                    } else {
-                        cell.textContent = originalData[column];
-                    }
-                    cell.classList.remove('editable');
-                }
-            }
-
-            // Restore edit button
-            const actionCell = cells[cells.length - 1];
-            actionCell.innerHTML = `<button class="btn btn-edit" onclick="startEditing(this.closest('tr'))">Edit</button>`;
-
-            editingRow = null;
-            originalData = null;
-        }
-
-        async function saveChanges(storeId) {
-            if (!editingRow) return;
-
-            const updates = {};
-            const cells = editingRow.getElementsByTagName('td');
-            const requiredFields = ['Store_Name', 'Region']; // Fix case to match actual column names
-            const missingFields = [];
-
-            // Gather changes
-            for (let i = 0; i < cells.length - 1; i++) {
-                const cell = cells[i];
-                if (cell.dataset.editable === 'true') {
-                    const column = cell.dataset.column;
-                    let newValue;
-                    
-                    if (cell.dataset.isCheckbox === 'true') {
-                        const checkbox = cell.querySelector('input[type="checkbox"]');
-                        newValue = checkbox ? (checkbox.checked ? 'TRUE' : 'FALSE') : 'FALSE';
-                        
-                        if ((column === 'SPECIAL_FRIDAY' || column === 'SPECIAL_SUNDAY') && newValue === 'TRUE') {
-                            const dayColumn = column === 'SPECIAL_FRIDAY' ? 'FRIDAY' : 'SUNDAY';
-                            updates[dayColumn] = 'TRUE';
-                        }
-                        
-                        const originalValue = originalData[column] === 'TRUE' ? 'TRUE' : 'FALSE';
-                        if (newValue !== originalValue) {
-                            updates[column] = newValue;
-                            console.log(`Column ${column} changed from '${originalValue}' to '${newValue}'`);
-                        }
-                    } else {
-                        const input = cell.querySelector('input');
-                        newValue = input ? input.value.trim() : '';
-                        
-                        // Check required fields with proper case sensitivity
-                        if (requiredFields.includes(column) && !newValue) {
-                            missingFields.push(column.replace(/_/g, ' '));
-                        }
-                        
-                        if (newValue !== originalData[column]) {
-                            updates[column] = newValue;
-                            console.log(`Column ${column} changed from '${originalData[column]}' to '${newValue}'`);
-                        }
-                    }
-                }
-            }
-
-            // Validate required fields
-            if (missingFields.length > 0) {
-                showStatusMessage(`Please fill in required fields: ${missingFields.join(', ')}`, false);
-                return;
-            }
-
-            if (Object.keys(updates).length === 0) {
-                showStatusMessage('No changes to save', true);
-                cancelEditing();
-                return;
-            }
-
-            console.log(`DEBUG: Saving updates for store ${storeId}:`, JSON.stringify(updates));
+            formContainer.innerHTML = formHtml;
             
-            try {
-                const result = await updateStore(storeId, updates);
-                showStatusMessage('Changes saved successfully', true);
-                
-                // Verify the changes were applied
-                try {
-                    const verifyData = await fetchStoreById(storeId);
-                    console.log('Verification data after update:', verifyData);
-                    
-                    // Check if updates were applied
-                    let allChangesApplied = true;
-                    const failedUpdates = [];
-                    
-                    for (const [key, value] of Object.entries(updates)) {
-                        const cleanValue = sanitizeStoreData({[key]: value})[key];
-                        if (String(verifyData[key]) !== String(cleanValue)) {
-                            allChangesApplied = false;
-                            failedUpdates.push(key);
-                            console.error(`Update verification failed for field ${key}: expected '${cleanValue}', got '${verifyData[key]}'`);
-                        }
-                    }
-                    
-                    if (!allChangesApplied) {
-                        console.warn(`Some updates may not have been applied correctly: ${failedUpdates.join(', ')}`);
-                    } else {
-                        console.log('All updates verified successfully');
-                    }
-                } catch (verifyError) {
-                    console.error('Error verifying updates:', verifyError);
-                }
-                
-                await fetchData(); // Refresh the table
-                cancelEditing(); // Exit edit mode after successful save
-            } catch (error) {
-                console.error('Error saving changes:', error);
-                
-                // Provide more detailed error message if available
-                let errorMessage = error.message;
-                if (lastApiError) {
-                    console.log('Last API error details:', lastApiError);
-                    errorMessage += lastApiError.data?.details ? 
-                                     ` (${lastApiError.data.details})` : '';
-                }
-                
-                showStatusMessage(errorMessage, false);
+            // Event handlers for special day checkboxes
+            const specialFridayCheckbox = document.getElementById('edit_SPECIAL_FRIDAY');
+            const specialSundayCheckbox = document.getElementById('edit_SPECIAL_SUNDAY');
+            const fridayCheckbox = document.getElementById('edit_FRIDAY');
+            const sundayCheckbox = document.getElementById('edit_SUNDAY');
+            
+            if (specialFridayCheckbox && fridayCheckbox) {
+                specialFridayCheckbox.addEventListener('change', function() {
+                    if (this.checked) fridayCheckbox.checked = true;
+                });
             }
+            
+            if (specialSundayCheckbox && sundayCheckbox) {
+                specialSundayCheckbox.addEventListener('change', function() {
+                    if (this.checked) sundayCheckbox.checked = true;
+                });
+            }
+            
+            // Add form submit handler
+            document.getElementById('editStoreForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                submitEditForm();
+            });
         }
-
-        function showStatusMessage(message, isSuccess) {
+        
+        function closeEditForm() {
+            document.getElementById('newRowFormContainer').innerHTML = '';
+        }
+        
+        function hideStatusMessage() {
             const statusDiv = document.getElementById('status-message');
-            statusDiv.textContent = message;
-            statusDiv.className = 'status-message ' + (isSuccess ? 'status-success' : 'status-error');
-            statusDiv.style.display = 'block';
-
-            setTimeout(() => {
-                statusDiv.style.display = 'none';
-            }, 3000);
+            statusDiv.style.display = 'none';
         }
-
+        
+        function showEditResult(message, isSuccess) {
+            const resultDiv = document.getElementById('edit-result');
+            if (!resultDiv) return;
+            
+            resultDiv.textContent = message;
+            resultDiv.className = `edit-result ${isSuccess ? 'edit-success' : 'edit-error'}`;
+            resultDiv.style.display = 'block';
+            
+            if (isSuccess) {
+                setTimeout(() => {
+                    closeEditForm();
+                    fetchData(); // Refresh the table
+                }, 1500);
+            }
+        }
+        
+        function submitEditForm() {
+            const storeId = document.getElementById('edit_Store_ID').value;
+            const form = document.getElementById('editStoreForm');
+            
+            // Disable form while submitting
+            const submitBtn = form.querySelector('button[type="submit"]');
+            const cancelBtn = form.querySelector('button.btn-cancel');
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Saving...';
+            cancelBtn.disabled = true;
+            
+            // Gather all form values
+            const formValues = {
+                Store_Name: document.getElementById('edit_Store_Name').value.trim(),
+                Region: document.getElementById('edit_Region').value,
+                State: document.getElementById('edit_State').value.trim(),
+                Active: document.getElementById('edit_Active').value,
+                Address: document.getElementById('edit_Address').value.trim(),
+                Supplier_Code: document.getElementById('edit_Supplier_Code').value.trim(),
+                SUNDAY: document.getElementById('edit_SUNDAY').checked ? 'TRUE' : 'FALSE',
+                MONDAY: document.getElementById('edit_MONDAY').checked ? 'TRUE' : 'FALSE',
+                TUESDAY: document.getElementById('edit_TUESDAY').checked ? 'TRUE' : 'FALSE',
+                WEDNESDAY: document.getElementById('edit_WEDNESDAY').checked ? 'TRUE' : 'FALSE',
+                THURSDAY: document.getElementById('edit_THURSDAY').checked ? 'TRUE' : 'FALSE',
+                FRIDAY: document.getElementById('edit_FRIDAY').checked ? 'TRUE' : 'FALSE',
+                SATURDAY: document.getElementById('edit_SATURDAY').checked ? 'TRUE' : 'FALSE',
+                SPECIAL_FRIDAY: document.getElementById('edit_SPECIAL_FRIDAY').checked ? 'TRUE' : 'FALSE',
+                SPECIAL_SUNDAY: document.getElementById('edit_SPECIAL_SUNDAY').checked ? 'TRUE' : 'FALSE'
+            };
+            
+            // Show in the edit form first
+            showEditResult('Saving changes...', true);
+            
+            // Use our new safer endpoint
+            fetch(`/api/stores/${storeId}/update-safe`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(formValues)
+            })
+            .then(response => {
+                if (!response.ok) {
+                    return response.text().then(text => {
+                        try {
+                            // Try to parse as JSON
+                            const data = JSON.parse(text);
+                            throw new Error(data.error || data.details || `Failed to save (${response.status})`);
+                        } catch (e) {
+                            if (e instanceof SyntaxError) {
+                                // Not JSON
+                                throw new Error(`Failed to save: ${text || response.statusText}`);
+                            }
+                            throw e;
+                        }
+                    });
+                }
+                return response.json();
+            })
+            .then(data => {
+                // Success
+                console.log('Update successful', data);
+                showEditResult('Changes saved successfully!', true);
+                showStatusMessage('Changes saved successfully', true);
+            })
+            .catch(error => {
+                console.error('Error updating store:', error);
+                showEditResult(`Error: ${error.message}`, false);
+                showStatusMessage(`Error: ${error.message}`, false);
+                
+                // Re-enable form buttons
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Save Changes';
+                cancelBtn.disabled = false;
+            });
+        }
+        
         function updateMetrics(stores, lastRunDate) {
             // Update total stores
             document.getElementById('totalStores').textContent = stores.length;
