@@ -566,6 +566,104 @@
         let regions = []; // Store regions for dropdowns
         let activeFilters = {}; // Store active filters
         let allData = []; // Store all data for filtering
+        let lastApiError = null;
+
+        // Dedicated utility functions for API communication
+        async function fetchStoreById(storeId) {
+            try {
+                const response = await fetch(`/api/stores/${storeId}`);
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    try {
+                        const errorData = JSON.parse(errorText);
+                        throw new Error(errorData.error || errorData.details || `Failed to fetch store (${response.status})`);
+                    } catch (jsonError) {
+                        throw new Error(`Failed to fetch store: ${errorText || response.statusText}`);
+                    }
+                }
+                
+                return await response.json();
+            } catch (error) {
+                console.error("Error fetching store:", error);
+                throw error;
+            }
+        }
+        
+        async function updateStore(storeId, data) {
+            try {
+                // Clean and validate data before sending
+                const cleanData = sanitizeStoreData(data);
+                console.log("Sending clean data to server:", cleanData);
+                
+                const response = await fetch(`/api/stores/${storeId}`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(cleanData)
+                });
+                
+                const responseText = await response.text();
+                let responseData;
+                
+                try {
+                    // Try to parse as JSON first
+                    responseData = JSON.parse(responseText);
+                } catch (jsonError) {
+                    // If not JSON, use text as is
+                    responseData = { message: responseText };
+                }
+                
+                if (!response.ok) {
+                    lastApiError = {
+                        status: response.status,
+                        statusText: response.statusText,
+                        data: responseData
+                    };
+                    
+                    const errorMessage = responseData.error || responseData.details || 
+                                        `Server error (${response.status}: ${response.statusText})`;
+                    throw new Error(errorMessage);
+                }
+                
+                console.log("Update successful:", responseData);
+                return responseData;
+            } catch (error) {
+                console.error("Update failed:", error);
+                throw error;
+            }
+        }
+        
+        function sanitizeStoreData(data) {
+            const cleanData = {};
+            
+            // Process each field according to its expected type
+            for (const [key, value] of Object.entries(data)) {
+                // Handle boolean fields consistently
+                if (['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 
+                     'SATURDAY', 'SPECIAL_FRIDAY', 'SPECIAL_SUNDAY'].includes(key)) {
+                    cleanData[key] = value === true || value === 'TRUE' || value === 'true' ? 'TRUE' : 'FALSE';
+                }
+                // Handle empty values for optional fields
+                else if (value === '' && !['Store_Name', 'Region'].includes(key)) {
+                    cleanData[key] = null;
+                }
+                // Handle numeric fields
+                else if (['Run_ID', 'Shelf_Limit'].includes(key) && value !== '' && value !== null) {
+                    const numValue = parseFloat(value);
+                    cleanData[key] = !isNaN(numValue) ? numValue.toString() : value;
+                }
+                // Handle other fields
+                else {
+                    cleanData[key] = value;
+                }
+            }
+            
+            // Remove any timestamp fields that might cause issues
+            delete cleanData.Created_At;
+            delete cleanData.Updated_At;
+            
+            return cleanData;
+        }
 
         async function fetchData() {
             console.log("fetchData function called");
@@ -976,8 +1074,7 @@
             const storeId = row.dataset.storeId;
             
             // Initialize originalData by fetching current values from server
-            fetch(`/api/stores/${storeId}`)
-                .then(response => response.json())
+            fetchStoreById(storeId)
                 .then(data => {
                     console.log(`Fetched original data for store ${storeId}:`, data);
                     originalData = data;
@@ -1151,71 +1248,14 @@
             }
 
             console.log(`DEBUG: Saving updates for store ${storeId}:`, JSON.stringify(updates));
-
-            // Final validation of data types before sending to server
-            for (const [key, value] of Object.entries(updates)) {
-                // For boolean fields, ensure they're 'TRUE' or 'FALSE' strings
-                if (['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 
-                     'SPECIAL_FRIDAY', 'SPECIAL_SUNDAY'].includes(key)) {
-                    updates[key] = value === true || value === 'true' || value === 'TRUE' ? 'TRUE' : 'FALSE';
-                }
-                
-                // For numeric fields, ensure they're valid numbers
-                if (['Run_ID', 'Shelf_Limit'].includes(key) && value !== '') {
-                    // Try to convert to a valid number or leave as is if not a number
-                    const numValue = parseFloat(value);
-                    if (!isNaN(numValue)) {
-                        updates[key] = numValue.toString();
-                    }
-                }
-                
-                // Handle empty string values for nullable fields
-                if (value === '' && !['Store_Name', 'Region'].includes(key)) {
-                    updates[key] = null;
-                }
-            }
-
+            
             try {
-                console.log(`Making PUT request to /api/stores/${storeId}`);
-                const response = await fetch(`/api/stores/${storeId}`, {
-                    method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(updates)
-                });
-
-                console.log(`Response status: ${response.status}`);
-                
-                // Get the response text first before attempting to parse as JSON
-                const responseText = await response.text();
-                console.log('Raw response:', responseText);
-                
-                let result;
-                try {
-                    // Try to parse the response as JSON
-                    result = JSON.parse(responseText);
-                    console.log('Parsed JSON response:', result);
-                } catch (parseError) {
-                    console.error('Error parsing response as JSON:', parseError);
-                    result = { message: responseText };
-                }
-                
-                if (!response.ok) {
-                    let errorMessage = `Failed to save changes: ${response.statusText}`;
-                    if (result && (result.error || result.details)) {
-                        errorMessage = result.error || result.details;
-                    }
-                    throw new Error(errorMessage);
-                }
-
-                console.log("Update successful:", result);
+                const result = await updateStore(storeId, updates);
                 showStatusMessage('Changes saved successfully', true);
                 
-                // Call a diagnostic endpoint to verify the update was properly applied
+                // Verify the changes were applied
                 try {
-                    const verifyResponse = await fetch(`/api/stores/${storeId}`);
-                    const verifyData = await verifyResponse.json();
+                    const verifyData = await fetchStoreById(storeId);
                     console.log('Verification data after update:', verifyData);
                     
                     // Check if updates were applied
@@ -1223,10 +1263,11 @@
                     const failedUpdates = [];
                     
                     for (const [key, value] of Object.entries(updates)) {
-                        if (verifyData[key] !== value) {
+                        const cleanValue = sanitizeStoreData({[key]: value})[key];
+                        if (String(verifyData[key]) !== String(cleanValue)) {
                             allChangesApplied = false;
                             failedUpdates.push(key);
-                            console.error(`Update verification failed for field ${key}: expected '${value}', got '${verifyData[key]}'`);
+                            console.error(`Update verification failed for field ${key}: expected '${cleanValue}', got '${verifyData[key]}'`);
                         }
                     }
                     
@@ -1243,7 +1284,16 @@
                 cancelEditing(); // Exit edit mode after successful save
             } catch (error) {
                 console.error('Error saving changes:', error);
-                showStatusMessage(error.message, false);
+                
+                // Provide more detailed error message if available
+                let errorMessage = error.message;
+                if (lastApiError) {
+                    console.log('Last API error details:', lastApiError);
+                    errorMessage += lastApiError.data?.details ? 
+                                     ` (${lastApiError.data.details})` : '';
+                }
+                
+                showStatusMessage(errorMessage, false);
             }
         }
 
@@ -1350,23 +1400,8 @@
                 [overrideColumn]: overrideValue
             };
             
-            // Remove any timestamp fields that might cause errors
-            delete updates.Created_At;
-            delete updates.Updated_At;
-            
             try {
-                const response = await fetch(`/api/stores/${storeId}`, {
-                    method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(updates)
-                });
-
-                if (!response.ok) {
-                    throw new Error(`Failed to save override: ${response.statusText}`);
-                }
-
+                await updateStore(storeId, updates);
                 showStatusMessage('Override saved successfully', true);
                 closeOverridePopup();
                 await fetchData(); // Refresh the table
