@@ -1179,7 +1179,32 @@
                     data: data
                 })
             })
-            .then(response => response.json())
+            .then(response => {
+                // Check for server errors first
+                if (response.status >= 500) {
+                    return response.text().then(text => {
+                        try {
+                            const errorData = JSON.parse(text);
+                            console.error('Server error:', errorData);
+                            
+                            // Check for common database errors
+                            if (errorData.details && errorData.details.includes("Invalid column name")) {
+                                throw new Error("Database schema error: " + errorData.details + 
+                                               ". Please contact support.");
+                            }
+                            
+                            throw new Error(errorData.error || errorData.details || 
+                                           `Server error (${response.status})`);
+                        } catch (e) {
+                            if (e instanceof SyntaxError) {
+                                throw new Error(`Server error: ${text || response.statusText}`);
+                            }
+                            throw e;
+                        }
+                    });
+                }
+                return response.json();
+            })
             .then(result => {
                 if (result.success) {
                     showEditResult(storeId, 'Store updated successfully', true);

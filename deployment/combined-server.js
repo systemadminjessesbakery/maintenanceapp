@@ -567,8 +567,7 @@ app.put('/api/stores/:storeId', async (req, res) => {
 
     const query = `
       UPDATE Stores_Master 
-      SET ${updateFields.join(', ')},
-          Updated_At = GETDATE()
+      SET ${updateFields.join(', ')}
       WHERE Store_ID = @Store_ID;
       
       SELECT * FROM Stores_Master WHERE Store_ID = @Store_ID;
@@ -1379,9 +1378,6 @@ app.post('/api/stores/:storeId/update-safe', async (req, res) => {
       return res.status(400).json({ error: 'No valid fields to update' });
     }
 
-    // Add automatic timestamp update
-    updateFields.push('Updated_At = GETDATE()');
-
     const query = `
       UPDATE Stores_Master 
       SET ${updateFields.join(', ')}
@@ -1488,8 +1484,7 @@ app.post('/api/direct-store-update', async (req, res) => {
         FRIDAY = @FRIDAY,
         SATURDAY = @SATURDAY,
         SPECIAL_FRIDAY = @SPECIAL_FRIDAY,
-        SPECIAL_SUNDAY = @SPECIAL_SUNDAY,
-        Updated_At = GETDATE()
+        SPECIAL_SUNDAY = @SPECIAL_SUNDAY
       WHERE Store_ID = @Store_ID;
       
       SELECT * FROM Stores_Master WHERE Store_ID = @Store_ID;
