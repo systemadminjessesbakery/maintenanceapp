@@ -1517,6 +1517,67 @@ app.post('/api/direct-store-update', async (req, res) => {
   }
 });
 
+// Adjustment profile endpoints
+app.get('/api/adjustment-profiles', async (req, res) => {
+  logger.debug('Received request for /api/adjustment-profiles');
+  
+  if (!poolConnected) {
+    return res.status(503).json({
+      error: 'Database not connected',
+      message: 'The database connection is not available'
+    });
+  }
+  
+  try {
+    // Get product baskets
+    const basketsResult = await pool.request()
+      .query(`
+        SELECT [Product_ID]
+          ,[Product_Description]
+          ,[Product_Family]
+          ,[IncludeInSubset]
+          ,[MinQtyToSend]
+          ,[All_Small]
+          ,[All_Medium]
+          ,[All_Large]
+          ,[S_Sourdough]
+          ,[M_Sourdough]
+          ,[L_Sourdough]
+          ,[S_Bagels]
+          ,[M_Bagels]
+          ,[L_Bagels]
+        FROM [dbo].[Products_Standard_Baskets]
+      `);
+    
+    // Get active stores
+    const storesResult = await pool.request()
+      .query(`
+        SELECT [Store_ID], [Store_Name], [Region], [State] 
+        FROM [dbo].[Stores_Master]
+        WHERE [Active] = 'Active'
+        ORDER BY [Store_Name]
+      `);
+    
+    // Get the basket selectors (columns after IncludeInSubset)
+    const basketSelectors = Object.keys(basketsResult.recordset[0] || {})
+      .filter(key => !['Product_ID', 'Product_Description', 'Product_Family', 'IncludeInSubset', 'MinQtyToSend'].includes(key));
+    
+    const response = {
+      baskets: basketsResult.recordset,
+      stores: storesResult.recordset,
+      basketSelectors: basketSelectors
+    };
+    
+    res.json(response);
+  } catch (err) {
+    logger.error('Error fetching adjustment profiles data:', err);
+    res.status(500).json({ 
+      error: 'Error fetching adjustment profiles data',
+      details: err.message
+    });
+  }
+});
+
 // Serve static files with cache busting
 app.use(express.static(__dirname, {
   etag: false,
