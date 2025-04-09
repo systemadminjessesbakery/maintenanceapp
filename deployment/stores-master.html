@@ -971,12 +971,28 @@
             if (editingRow && editingRow !== row) {
                 cancelEditing();
             }
-
+            
             editingRow = row;
+            const storeId = row.dataset.storeId;
+            
+            // Initialize originalData by fetching current values from server
+            fetch(`/api/stores/${storeId}`)
+                .then(response => response.json())
+                .then(data => {
+                    console.log(`Fetched original data for store ${storeId}:`, data);
+                    originalData = data;
+                    completeStartEditing(row);
+                })
+                .catch(error => {
+                    console.error(`Error fetching store ${storeId} data:`, error);
+                    showStatusMessage(`Error starting edit: ${error.message}`, false);
+                    editingRow = null;
+                });
+        }
+        
+        function completeStartEditing(row) {
             const cells = row.getElementsByTagName('td');
-            originalData = {};
-
-            // Convert cells to input fields
+            
             for (let i = 0; i < cells.length - 1; i++) {
                 const cell = cells[i];
                 if (cell.dataset.editable === 'true') {
@@ -1100,8 +1116,10 @@
                             updates[dayColumn] = 'TRUE';
                         }
                         
-                        if (newValue !== (originalData[column] ? 'TRUE' : 'FALSE')) {
+                        const originalValue = originalData[column] === 'TRUE' ? 'TRUE' : 'FALSE';
+                        if (newValue !== originalValue) {
                             updates[column] = newValue;
+                            console.log(`Column ${column} changed from '${originalValue}' to '${newValue}'`);
                         }
                     } else {
                         const input = cell.querySelector('input');
@@ -1134,6 +1152,29 @@
 
             console.log(`DEBUG: Saving updates for store ${storeId}:`, JSON.stringify(updates));
 
+            // Final validation of data types before sending to server
+            for (const [key, value] of Object.entries(updates)) {
+                // For boolean fields, ensure they're 'TRUE' or 'FALSE' strings
+                if (['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 
+                     'SPECIAL_FRIDAY', 'SPECIAL_SUNDAY'].includes(key)) {
+                    updates[key] = value === true || value === 'true' || value === 'TRUE' ? 'TRUE' : 'FALSE';
+                }
+                
+                // For numeric fields, ensure they're valid numbers
+                if (['Run_ID', 'Shelf_Limit'].includes(key) && value !== '') {
+                    // Try to convert to a valid number or leave as is if not a number
+                    const numValue = parseFloat(value);
+                    if (!isNaN(numValue)) {
+                        updates[key] = numValue.toString();
+                    }
+                }
+                
+                // Handle empty string values for nullable fields
+                if (value === '' && !['Store_Name', 'Region'].includes(key)) {
+                    updates[key] = null;
+                }
+            }
+
             try {
                 console.log(`Making PUT request to /api/stores/${storeId}`);
                 const response = await fetch(`/api/stores/${storeId}`, {
@@ -1146,27 +1187,58 @@
 
                 console.log(`Response status: ${response.status}`);
                 
+                // Get the response text first before attempting to parse as JSON
+                const responseText = await response.text();
+                console.log('Raw response:', responseText);
+                
+                let result;
+                try {
+                    // Try to parse the response as JSON
+                    result = JSON.parse(responseText);
+                    console.log('Parsed JSON response:', result);
+                } catch (parseError) {
+                    console.error('Error parsing response as JSON:', parseError);
+                    result = { message: responseText };
+                }
+                
                 if (!response.ok) {
                     let errorMessage = `Failed to save changes: ${response.statusText}`;
-                    let errorDetails = '';
-                    
-                    try {
-                        const errorData = await response.json();
-                        console.log('Error response data:', errorData);
-                        errorMessage = errorData.error || errorData.details || errorMessage;
-                        if (errorData.query) {
-                            errorDetails = `Error in query: ${errorData.query}`;
-                        }
-                    } catch (e) {
-                        console.log('Could not parse error response as JSON:', e);
+                    if (result && (result.error || result.details)) {
+                        errorMessage = result.error || result.details;
                     }
-                    
-                    throw new Error(errorMessage + (errorDetails ? ' - ' + errorDetails : ''));
+                    throw new Error(errorMessage);
                 }
 
-                const result = await response.json();
                 console.log("Update successful:", result);
                 showStatusMessage('Changes saved successfully', true);
+                
+                // Call a diagnostic endpoint to verify the update was properly applied
+                try {
+                    const verifyResponse = await fetch(`/api/stores/${storeId}`);
+                    const verifyData = await verifyResponse.json();
+                    console.log('Verification data after update:', verifyData);
+                    
+                    // Check if updates were applied
+                    let allChangesApplied = true;
+                    const failedUpdates = [];
+                    
+                    for (const [key, value] of Object.entries(updates)) {
+                        if (verifyData[key] !== value) {
+                            allChangesApplied = false;
+                            failedUpdates.push(key);
+                            console.error(`Update verification failed for field ${key}: expected '${value}', got '${verifyData[key]}'`);
+                        }
+                    }
+                    
+                    if (!allChangesApplied) {
+                        console.warn(`Some updates may not have been applied correctly: ${failedUpdates.join(', ')}`);
+                    } else {
+                        console.log('All updates verified successfully');
+                    }
+                } catch (verifyError) {
+                    console.error('Error verifying updates:', verifyError);
+                }
+                
                 await fetchData(); // Refresh the table
                 cancelEditing(); // Exit edit mode after successful save
             } catch (error) {
@@ -1564,7 +1636,13 @@
                 
                 console.log(`Testing update with value:`, updates);
                 
-                // Send the request
+                // Enhanced diagnostic logging
+                console.log(`DIAGNOSTIC: Starting update request for store ${storeId}`);
+                console.log(`DIAGNOSTIC: Request payload:`, JSON.stringify(updates));
+                console.log(`DIAGNOSTIC: Request URL: /api/stores/${storeId}`);
+                console.log(`DIAGNOSTIC: Request Method: PUT`);
+                
+                // Send the request with additional diagnostic info
                 const response = await fetch(`/api/stores/${storeId}`, {
                     method: 'PUT',
                     headers: {
@@ -1573,13 +1651,31 @@
                     body: JSON.stringify(updates)
                 });
                 
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.error || errorData.details || `Failed to update ${fieldName}`);
+                console.log(`DIAGNOSTIC: Response status:`, response.status, response.statusText);
+                
+                const responseText = await response.text();
+                let responseData;
+                
+                try {
+                    // Try to parse as JSON
+                    responseData = JSON.parse(responseText);
+                    console.log(`DIAGNOSTIC: Response parsed as JSON:`, responseData);
+                } catch (e) {
+                    // If not JSON, log as text
+                    console.log(`DIAGNOSTIC: Response (not JSON):`, responseText);
+                    responseData = { error: 'Invalid JSON response', text: responseText };
                 }
                 
-                const result = await response.json();
-                console.log(`Test update successful:`, result);
+                if (!response.ok) {
+                    console.log(`DIAGNOSTIC: Error response details:`, responseData);
+                    throw new Error(
+                        responseData.error || 
+                        responseData.details || 
+                        `Failed to update ${fieldName} (Status: ${response.status})`
+                    );
+                }
+                
+                console.log(`Test update successful:`, responseData);
                 showStatusMessage(`Test update of ${fieldName} successful`, true);
                 await fetchData(); // Refresh the table
             } catch (error) {
@@ -1591,6 +1687,107 @@
         // For quick debugging from console
         window.testStoreField = async function(storeId, fieldName) {
             await testUpdate(storeId, fieldName);
+        };
+
+        // Add comprehensive diagnostics function for troubleshooting updates
+        window.diagnoseDatabaseUpdate = async function(storeId) {
+            try {
+                console.log(`DIAGNOSTIC: Running comprehensive update diagnosis for store ${storeId}`);
+                
+                // 1. First check if we can get the store data
+                console.log(`DIAGNOSTIC: Step 1 - Retrieving store data`);
+                const getResponse = await fetch(`/api/stores/${storeId}`);
+                const getResponseText = await getResponse.text();
+                
+                try {
+                    const storeData = JSON.parse(getResponseText);
+                    console.log(`DIAGNOSTIC: Retrieved store data:`, storeData);
+                    
+                    // 2. Try to make a minimal update
+                    console.log(`DIAGNOSTIC: Step 2 - Testing minimal update`);
+                    const testField = 'Store_Name';
+                    const currentValue = storeData[testField];
+                    const testValue = currentValue + ' (test)';
+                    
+                    const updatePayload = { [testField]: testValue };
+                    console.log(`DIAGNOSTIC: Update payload:`, updatePayload);
+                    
+                    const updateResponse = await fetch(`/api/stores/${storeId}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(updatePayload)
+                    });
+                    
+                    console.log(`DIAGNOSTIC: Update response status:`, updateResponse.status, updateResponse.statusText);
+                    
+                    const updateResponseText = await updateResponse.text();
+                    try {
+                        const updateResult = JSON.parse(updateResponseText);
+                        console.log(`DIAGNOSTIC: Update result:`, updateResult);
+                        
+                        // 3. Verify the update was applied
+                        console.log(`DIAGNOSTIC: Step 3 - Verifying update was applied`);
+                        const verifyResponse = await fetch(`/api/stores/${storeId}`);
+                        const verifyData = await verifyResponse.json();
+                        console.log(`DIAGNOSTIC: Verification data:`, verifyData);
+                        
+                        const updateSuccessful = verifyData[testField] === testValue;
+                        console.log(`DIAGNOSTIC: Update verification ${updateSuccessful ? 'PASSED' : 'FAILED'}`);
+                        
+                        // 4. Try the diagnostic endpoint if available
+                        console.log(`DIAGNOSTIC: Step 4 - Testing diagnostic endpoint`);
+                        try {
+                            const diagnosticResponse = await fetch(`/api/stores/${storeId}/diagnostic-update`, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                },
+                                body: JSON.stringify({ [testField]: currentValue })
+                            });
+                            
+                            const diagnosticResult = await diagnosticResponse.json();
+                            console.log(`DIAGNOSTIC: Server diagnostic result:`, diagnosticResult);
+                        } catch (diagErr) {
+                            console.log(`DIAGNOSTIC: Diagnostic endpoint test failed:`, diagErr);
+                        }
+                        
+                        // Final report
+                        console.log(`DIAGNOSTIC: Test complete. Database update functionality appears to be ${updateSuccessful ? 'WORKING' : 'NOT WORKING'}`);
+                        
+                        return {
+                            success: updateSuccessful,
+                            originalData: storeData,
+                            updateResult: updateResult,
+                            verificationData: verifyData
+                        };
+                        
+                    } catch (e) {
+                        console.log(`DIAGNOSTIC: Could not parse update response as JSON:`, updateResponseText);
+                        return {
+                            success: false,
+                            error: 'Invalid JSON in update response',
+                            responseText: updateResponseText
+                        };
+                    }
+                    
+                } catch (e) {
+                    console.log(`DIAGNOSTIC: Could not parse store data as JSON:`, getResponseText);
+                    return {
+                        success: false,
+                        error: 'Invalid JSON in get response',
+                        responseText: getResponseText
+                    };
+                }
+                
+            } catch (error) {
+                console.error(`DIAGNOSTIC: Comprehensive test failed:`, error);
+                return {
+                    success: false,
+                    error: error.message
+                };
+            }
         };
 
         // Start fetching data when page loads
