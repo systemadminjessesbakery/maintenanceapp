@@ -537,6 +537,79 @@
             background-color: #f8d7da;
             color: #721c24;
         }
+        /* Simple direct editing styles */
+        .edit-row {
+            display: none;
+            background-color: #f9f9f9;
+            padding: 15px;
+            margin-top: 10px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+        }
+        
+        .edit-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .edit-field {
+            margin-bottom: 10px;
+        }
+        
+        .edit-field label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 3px;
+            font-size: 0.9rem;
+        }
+        
+        .edit-field input[type="text"],
+        .edit-field select {
+            width: 100%;
+            padding: 6px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        
+        .edit-days {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 8px;
+        }
+        
+        .edit-checkbox {
+            display: flex;
+            align-items: center;
+        }
+        
+        .edit-checkbox input {
+            margin-right: 5px;
+        }
+        
+        .edit-buttons {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+        
+        .edit-result {
+            margin-top: 10px;
+            padding: 8px;
+            border-radius: 4px;
+            display: none;
+        }
+        
+        .edit-success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        
+        .edit-error {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
     </style>
 </head>
 <body>
@@ -882,14 +955,250 @@
                 const editBtn = document.createElement('button');
                 editBtn.textContent = 'Edit';
                 editBtn.className = 'btn btn-edit';
-                editBtn.onclick = () => startEditing(tr);
+                editBtn.onclick = () => editStore(row.Store_ID);
                 actionTd.appendChild(editBtn);
                 tr.appendChild(actionTd);
                 
                 tbody.appendChild(tr);
+                
+                // Add edit row form after the main row
+                const editRow = createEditRow(row);
+                tbody.appendChild(editRow);
             });
         }
 
+        // Create a simple edit row for a store
+        function createEditRow(storeData) {
+            const tr = document.createElement('tr');
+            tr.className = 'edit-container';
+            const td = document.createElement('td');
+            td.colSpan = document.querySelectorAll('#storesTable thead th').length;
+            
+            const editForm = document.createElement('div');
+            editForm.className = 'edit-row';
+            editForm.id = `edit-${storeData.Store_ID}`;
+            
+            // Create form fields
+            editForm.innerHTML = `
+                <div class="edit-grid">
+                    <div class="edit-field">
+                        <label for="name-${storeData.Store_ID}">Store Name*</label>
+                        <input type="text" id="name-${storeData.Store_ID}" value="${storeData.Store_Name || ''}" required>
+                    </div>
+                    <div class="edit-field">
+                        <label for="region-${storeData.Store_ID}">Region*</label>
+                        <select id="region-${storeData.Store_ID}" required>
+                            <option value="">-- Select Region --</option>
+                            ${regions.map(region => 
+                                `<option value="${region}" ${region === storeData.Region ? 'selected' : ''}>${region}</option>`
+                            ).join('')}
+                        </select>
+                    </div>
+                    <div class="edit-field">
+                        <label for="state-${storeData.Store_ID}">State</label>
+                        <input type="text" id="state-${storeData.Store_ID}" value="${storeData.State || ''}">
+                    </div>
+                    <div class="edit-field">
+                        <label for="active-${storeData.Store_ID}">Status</label>
+                        <select id="active-${storeData.Store_ID}">
+                            <option value="Active" ${storeData.Active === 'Active' ? 'selected' : ''}>Active</option>
+                            <option value="Inactive" ${storeData.Active === 'Inactive' ? 'selected' : ''}>Inactive</option>
+                        </select>
+                    </div>
+                    <div class="edit-field">
+                        <label for="address-${storeData.Store_ID}">Address</label>
+                        <input type="text" id="address-${storeData.Store_ID}" value="${storeData.Address || ''}">
+                    </div>
+                    <div class="edit-field">
+                        <label for="supplier-${storeData.Store_ID}">Supplier Code</label>
+                        <input type="text" id="supplier-${storeData.Store_ID}" value="${storeData.Supplier_Code || ''}">
+                    </div>
+                </div>
+                <div class="edit-field">
+                    <label>Trading Days</label>
+                    <div class="edit-days">
+                        <label class="edit-checkbox">
+                            <input type="checkbox" id="sunday-${storeData.Store_ID}" ${storeData.SUNDAY === 'TRUE' ? 'checked' : ''}>
+                            Sunday
+                        </label>
+                        <label class="edit-checkbox">
+                            <input type="checkbox" id="monday-${storeData.Store_ID}" ${storeData.MONDAY === 'TRUE' ? 'checked' : ''}>
+                            Monday
+                        </label>
+                        <label class="edit-checkbox">
+                            <input type="checkbox" id="tuesday-${storeData.Store_ID}" ${storeData.TUESDAY === 'TRUE' ? 'checked' : ''}>
+                            Tuesday
+                        </label>
+                        <label class="edit-checkbox">
+                            <input type="checkbox" id="wednesday-${storeData.Store_ID}" ${storeData.WEDNESDAY === 'TRUE' ? 'checked' : ''}>
+                            Wednesday
+                        </label>
+                        <label class="edit-checkbox">
+                            <input type="checkbox" id="thursday-${storeData.Store_ID}" ${storeData.THURSDAY === 'TRUE' ? 'checked' : ''}>
+                            Thursday
+                        </label>
+                        <label class="edit-checkbox">
+                            <input type="checkbox" id="friday-${storeData.Store_ID}" ${storeData.FRIDAY === 'TRUE' ? 'checked' : ''}>
+                            Friday
+                        </label>
+                        <label class="edit-checkbox">
+                            <input type="checkbox" id="saturday-${storeData.Store_ID}" ${storeData.SATURDAY === 'TRUE' ? 'checked' : ''}>
+                            Saturday
+                        </label>
+                        <label class="edit-checkbox">
+                            <input type="checkbox" id="special-friday-${storeData.Store_ID}" ${storeData.SPECIAL_FRIDAY === 'TRUE' ? 'checked' : ''}>
+                            Special Friday
+                        </label>
+                        <label class="edit-checkbox">
+                            <input type="checkbox" id="special-sunday-${storeData.Store_ID}" ${storeData.SPECIAL_SUNDAY === 'TRUE' ? 'checked' : ''}>
+                            Special Sunday
+                        </label>
+                    </div>
+                </div>
+                <div id="edit-result-${storeData.Store_ID}" class="edit-result"></div>
+                <div class="edit-buttons">
+                    <button type="button" class="btn btn-cancel" onclick="cancelEdit('${storeData.Store_ID}')">Cancel</button>
+                    <button type="button" class="btn btn-save" onclick="saveStore('${storeData.Store_ID}')">Save Changes</button>
+                </div>
+            `;
+            
+            // Add special day logic
+            td.appendChild(editForm);
+            tr.appendChild(td);
+            
+            return tr;
+        }
+        
+        // Show the edit form for a specific store
+        function editStore(storeId) {
+            // Hide any other open edit forms
+            document.querySelectorAll('.edit-row').forEach(form => {
+                form.style.display = 'none';
+            });
+            
+            // Show this edit form
+            const editForm = document.getElementById(`edit-${storeId}`);
+            if (editForm) {
+                editForm.style.display = 'block';
+                
+                // Set up special day checkboxes
+                const fridayCheckbox = document.getElementById(`friday-${storeId}`);
+                const sundayCheckbox = document.getElementById(`sunday-${storeId}`);
+                const specialFridayCheckbox = document.getElementById(`special-friday-${storeId}`);
+                const specialSundayCheckbox = document.getElementById(`special-sunday-${storeId}`);
+                
+                if (specialFridayCheckbox && fridayCheckbox) {
+                    specialFridayCheckbox.addEventListener('change', function() {
+                        if (this.checked) fridayCheckbox.checked = true;
+                    });
+                }
+                
+                if (specialSundayCheckbox && sundayCheckbox) {
+                    specialSundayCheckbox.addEventListener('change', function() {
+                        if (this.checked) sundayCheckbox.checked = true;
+                    });
+                }
+            }
+        }
+        
+        // Cancel editing and hide the form
+        function cancelEdit(storeId) {
+            const editForm = document.getElementById(`edit-${storeId}`);
+            if (editForm) {
+                editForm.style.display = 'none';
+                document.getElementById(`edit-result-${storeId}`).style.display = 'none';
+            }
+        }
+        
+        // Show result message in the edit form
+        function showEditResult(storeId, message, isSuccess) {
+            const resultElement = document.getElementById(`edit-result-${storeId}`);
+            if (resultElement) {
+                resultElement.textContent = message;
+                resultElement.className = `edit-result ${isSuccess ? 'edit-success' : 'edit-error'}`;
+                resultElement.style.display = 'block';
+                
+                if (isSuccess) {
+                    // Auto-close on success after delay
+                    setTimeout(() => {
+                        cancelEdit(storeId);
+                    }, 1500);
+                }
+            }
+        }
+        
+        // Save store changes using direct update endpoint
+        function saveStore(storeId) {
+            // Get form field values
+            const data = {
+                Store_Name: document.getElementById(`name-${storeId}`).value.trim(),
+                Region: document.getElementById(`region-${storeId}`).value,
+                State: document.getElementById(`state-${storeId}`).value.trim(),
+                Active: document.getElementById(`active-${storeId}`).value,
+                Address: document.getElementById(`address-${storeId}`).value.trim(),
+                Supplier_Code: document.getElementById(`supplier-${storeId}`).value.trim(),
+                SUNDAY: document.getElementById(`sunday-${storeId}`).checked ? 'TRUE' : 'FALSE',
+                MONDAY: document.getElementById(`monday-${storeId}`).checked ? 'TRUE' : 'FALSE',
+                TUESDAY: document.getElementById(`tuesday-${storeId}`).checked ? 'TRUE' : 'FALSE',
+                WEDNESDAY: document.getElementById(`wednesday-${storeId}`).checked ? 'TRUE' : 'FALSE',
+                THURSDAY: document.getElementById(`thursday-${storeId}`).checked ? 'TRUE' : 'FALSE',
+                FRIDAY: document.getElementById(`friday-${storeId}`).checked ? 'TRUE' : 'FALSE',
+                SATURDAY: document.getElementById(`saturday-${storeId}`).checked ? 'TRUE' : 'FALSE',
+                SPECIAL_FRIDAY: document.getElementById(`special-friday-${storeId}`).checked ? 'TRUE' : 'FALSE',
+                SPECIAL_SUNDAY: document.getElementById(`special-sunday-${storeId}`).checked ? 'TRUE' : 'FALSE'
+            };
+            
+            // Simple client-side validation
+            if (!data.Store_Name) {
+                showEditResult(storeId, 'Store Name is required', false);
+                return;
+            }
+            
+            if (!data.Region) {
+                showEditResult(storeId, 'Region is required', false);
+                return;
+            }
+            
+            // Show saving message
+            showEditResult(storeId, 'Saving changes...', true);
+            
+            // Disable save button to prevent multiple submissions
+            const saveButton = document.querySelector(`#edit-${storeId} .btn-save`);
+            const cancelButton = document.querySelector(`#edit-${storeId} .btn-cancel`);
+            if (saveButton) saveButton.disabled = true;
+            if (cancelButton) cancelButton.disabled = true;
+            
+            // Call the direct update endpoint
+            fetch('/api/direct-store-update', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    storeId: storeId,
+                    data: data
+                })
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result.success) {
+                    showEditResult(storeId, 'Store updated successfully', true);
+                    showStatusMessage('Store updated successfully', true);
+                    fetchData(); // Refresh the table
+                } else {
+                    showEditResult(storeId, `Error: ${result.error}`, false);
+                    if (saveButton) saveButton.disabled = false;
+                    if (cancelButton) cancelButton.disabled = false;
+                }
+            })
+            .catch(error => {
+                console.error('Error updating store:', error);
+                showEditResult(storeId, `Error: ${error.message}`, false);
+                if (saveButton) saveButton.disabled = false;
+                if (cancelButton) cancelButton.disabled = false;
+            });
+        }
+        
         function showFilter(column, element) {
             // Remove any existing filter dropdowns
             const existingDropdowns = document.querySelectorAll('.filter-dropdown');
@@ -1118,275 +1427,6 @@
             }
         }
 
-        function startEditing(row) {
-            const storeId = row.dataset.storeId;
-            
-            // Show loader in status message
-            showStatusMessage('Loading store data...', true);
-            
-            // Fetch current store data
-            fetch(`/api/stores/${storeId}`)
-                .then(response => {
-                    if (!response.ok) throw new Error(`Failed to fetch store data (${response.status})`);
-                    return response.json();
-                })
-                .then(storeData => {
-                    // Open edit form with the data
-                    showEditForm(storeData);
-                    // Clear status message
-                    setTimeout(() => hideStatusMessage(), 500);
-                })
-                .catch(error => {
-                    console.error('Error fetching store data:', error);
-                    showStatusMessage(`Error: ${error.message}`, false);
-                });
-        }
-        
-        function showEditForm(storeData) {
-            const formContainer = document.getElementById('newRowFormContainer');
-            
-            // HTML escape function for safety
-            const escapeHTML = (str) => str ? String(str)
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;')
-                .replace(/'/g, '&#039;') : '';
-            
-            // Create the form HTML with proper escaping
-            const formHtml = `
-                <div class="edit-overlay">
-                    <div class="edit-form">
-                        <h2>Edit Store: ${escapeHTML(storeData.Store_Name)}</h2>
-                        <form id="editStoreForm">
-                            <input type="hidden" id="edit_Store_ID" value="${escapeHTML(storeData.Store_ID)}">
-                            
-                            <div class="form-group">
-                                <label for="edit_Store_Name">Store Name*</label>
-                                <input type="text" id="edit_Store_Name" value="${escapeHTML(storeData.Store_Name || '')}" required maxlength="255">
-                            </div>
-                            
-                            <div class="form-group">
-                                <label for="edit_Region">Region*</label>
-                                <select id="edit_Region" required>
-                                    <option value="">-- Select Region --</option>
-                                    ${regions.map(region => 
-                                        `<option value="${escapeHTML(region)}" ${region === storeData.Region ? 'selected' : ''}>${escapeHTML(region)}</option>`
-                                    ).join('')}
-                                </select>
-                            </div>
-                            
-                            <div class="form-group">
-                                <label for="edit_State">State*</label>
-                                <input type="text" id="edit_State" value="${escapeHTML(storeData.State || '')}" required maxlength="50">
-                            </div>
-                            
-                            <div class="form-group">
-                                <label for="edit_Active">Active*</label>
-                                <select id="edit_Active" required>
-                                    <option value="Active" ${storeData.Active === 'Active' ? 'selected' : ''}>Active</option>
-                                    <option value="Inactive" ${storeData.Active === 'Inactive' ? 'selected' : ''}>Inactive</option>
-                                </select>
-                            </div>
-                            
-                            <div class="form-group">
-                                <label for="edit_Address">Address</label>
-                                <input type="text" id="edit_Address" value="${escapeHTML(storeData.Address || '')}" maxlength="255">
-                            </div>
-                            
-                            <div class="form-group">
-                                <label for="edit_Supplier_Code">Supplier Code</label>
-                                <input type="text" id="edit_Supplier_Code" value="${escapeHTML(storeData.Supplier_Code || '')}" maxlength="50">
-                            </div>
-                            
-                            <div class="form-group day-checkboxes">
-                                <label>Trading Days</label>
-                                <div class="checkbox-group">
-                                    <label class="checkbox-label">
-                                        <input type="checkbox" id="edit_SUNDAY" ${storeData.SUNDAY === 'TRUE' ? 'checked' : ''}>
-                                        Sunday
-                                    </label>
-                                    <label class="checkbox-label">
-                                        <input type="checkbox" id="edit_MONDAY" ${storeData.MONDAY === 'TRUE' ? 'checked' : ''}>
-                                        Monday
-                                    </label>
-                                    <label class="checkbox-label">
-                                        <input type="checkbox" id="edit_TUESDAY" ${storeData.TUESDAY === 'TRUE' ? 'checked' : ''}>
-                                        Tuesday
-                                    </label>
-                                    <label class="checkbox-label">
-                                        <input type="checkbox" id="edit_WEDNESDAY" ${storeData.WEDNESDAY === 'TRUE' ? 'checked' : ''}>
-                                        Wednesday
-                                    </label>
-                                    <label class="checkbox-label">
-                                        <input type="checkbox" id="edit_THURSDAY" ${storeData.THURSDAY === 'TRUE' ? 'checked' : ''}>
-                                        Thursday
-                                    </label>
-                                    <label class="checkbox-label">
-                                        <input type="checkbox" id="edit_FRIDAY" ${storeData.FRIDAY === 'TRUE' ? 'checked' : ''}>
-                                        Friday
-                                    </label>
-                                    <label class="checkbox-label">
-                                        <input type="checkbox" id="edit_SATURDAY" ${storeData.SATURDAY === 'TRUE' ? 'checked' : ''}>
-                                        Saturday
-                                    </label>
-                                </div>
-                            </div>
-                            
-                            <div class="form-group">
-                                <label class="checkbox-label">
-                                    <input type="checkbox" id="edit_SPECIAL_FRIDAY" ${storeData.SPECIAL_FRIDAY === 'TRUE' ? 'checked' : ''}>
-                                    Special Friday
-                                </label>
-                            </div>
-                            
-                            <div class="form-group">
-                                <label class="checkbox-label">
-                                    <input type="checkbox" id="edit_SPECIAL_SUNDAY" ${storeData.SPECIAL_SUNDAY === 'TRUE' ? 'checked' : ''}>
-                                    Special Sunday
-                                </label>
-                            </div>
-                            
-                            <div id="edit-result" class="edit-result"></div>
-                            
-                            <div class="form-buttons">
-                                <button type="button" class="btn btn-cancel" onclick="closeEditForm()">Cancel</button>
-                                <button type="submit" class="btn btn-save">Save Changes</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            `;
-            
-            formContainer.innerHTML = formHtml;
-            
-            // Event handlers for special day checkboxes
-            const specialFridayCheckbox = document.getElementById('edit_SPECIAL_FRIDAY');
-            const specialSundayCheckbox = document.getElementById('edit_SPECIAL_SUNDAY');
-            const fridayCheckbox = document.getElementById('edit_FRIDAY');
-            const sundayCheckbox = document.getElementById('edit_SUNDAY');
-            
-            if (specialFridayCheckbox && fridayCheckbox) {
-                specialFridayCheckbox.addEventListener('change', function() {
-                    if (this.checked) fridayCheckbox.checked = true;
-                });
-            }
-            
-            if (specialSundayCheckbox && sundayCheckbox) {
-                specialSundayCheckbox.addEventListener('change', function() {
-                    if (this.checked) sundayCheckbox.checked = true;
-                });
-            }
-            
-            // Add form submit handler
-            document.getElementById('editStoreForm').addEventListener('submit', function(e) {
-                e.preventDefault();
-                submitEditForm();
-            });
-        }
-        
-        function closeEditForm() {
-            document.getElementById('newRowFormContainer').innerHTML = '';
-        }
-        
-        function hideStatusMessage() {
-            const statusDiv = document.getElementById('status-message');
-            statusDiv.style.display = 'none';
-        }
-        
-        function showEditResult(message, isSuccess) {
-            const resultDiv = document.getElementById('edit-result');
-            if (!resultDiv) return;
-            
-            resultDiv.textContent = message;
-            resultDiv.className = `edit-result ${isSuccess ? 'edit-success' : 'edit-error'}`;
-            resultDiv.style.display = 'block';
-            
-            if (isSuccess) {
-                setTimeout(() => {
-                    closeEditForm();
-                    fetchData(); // Refresh the table
-                }, 1500);
-            }
-        }
-        
-        function submitEditForm() {
-            const storeId = document.getElementById('edit_Store_ID').value;
-            const form = document.getElementById('editStoreForm');
-            
-            // Disable form while submitting
-            const submitBtn = form.querySelector('button[type="submit"]');
-            const cancelBtn = form.querySelector('button.btn-cancel');
-            submitBtn.disabled = true;
-            submitBtn.textContent = 'Saving...';
-            cancelBtn.disabled = true;
-            
-            // Gather all form values
-            const formValues = {
-                Store_Name: document.getElementById('edit_Store_Name').value.trim(),
-                Region: document.getElementById('edit_Region').value,
-                State: document.getElementById('edit_State').value.trim(),
-                Active: document.getElementById('edit_Active').value,
-                Address: document.getElementById('edit_Address').value.trim(),
-                Supplier_Code: document.getElementById('edit_Supplier_Code').value.trim(),
-                SUNDAY: document.getElementById('edit_SUNDAY').checked ? 'TRUE' : 'FALSE',
-                MONDAY: document.getElementById('edit_MONDAY').checked ? 'TRUE' : 'FALSE',
-                TUESDAY: document.getElementById('edit_TUESDAY').checked ? 'TRUE' : 'FALSE',
-                WEDNESDAY: document.getElementById('edit_WEDNESDAY').checked ? 'TRUE' : 'FALSE',
-                THURSDAY: document.getElementById('edit_THURSDAY').checked ? 'TRUE' : 'FALSE',
-                FRIDAY: document.getElementById('edit_FRIDAY').checked ? 'TRUE' : 'FALSE',
-                SATURDAY: document.getElementById('edit_SATURDAY').checked ? 'TRUE' : 'FALSE',
-                SPECIAL_FRIDAY: document.getElementById('edit_SPECIAL_FRIDAY').checked ? 'TRUE' : 'FALSE',
-                SPECIAL_SUNDAY: document.getElementById('edit_SPECIAL_SUNDAY').checked ? 'TRUE' : 'FALSE'
-            };
-            
-            // Show in the edit form first
-            showEditResult('Saving changes...', true);
-            
-            // Use our new safer endpoint
-            fetch(`/api/stores/${storeId}/update-safe`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(formValues)
-            })
-            .then(response => {
-                if (!response.ok) {
-                    return response.text().then(text => {
-                        try {
-                            // Try to parse as JSON
-                            const data = JSON.parse(text);
-                            throw new Error(data.error || data.details || `Failed to save (${response.status})`);
-                        } catch (e) {
-                            if (e instanceof SyntaxError) {
-                                // Not JSON
-                                throw new Error(`Failed to save: ${text || response.statusText}`);
-                            }
-                            throw e;
-                        }
-                    });
-                }
-                return response.json();
-            })
-            .then(data => {
-                // Success
-                console.log('Update successful', data);
-                showEditResult('Changes saved successfully!', true);
-                showStatusMessage('Changes saved successfully', true);
-            })
-            .catch(error => {
-                console.error('Error updating store:', error);
-                showEditResult(`Error: ${error.message}`, false);
-                showStatusMessage(`Error: ${error.message}`, false);
-                
-                // Re-enable form buttons
-                submitBtn.disabled = false;
-                submitBtn.textContent = 'Save Changes';
-                cancelBtn.disabled = false;
-            });
-        }
-        
         function updateMetrics(stores, lastRunDate) {
             // Update total stores
             document.getElementById('totalStores').textContent = stores.length;

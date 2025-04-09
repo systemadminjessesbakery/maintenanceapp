@@ -1414,6 +1414,114 @@ app.post('/api/stores/:storeId/update-safe', async (req, res) => {
   }
 });
 
+// Direct function for store updates - simplest possible approach
+app.post('/api/direct-store-update', async (req, res) => {
+  const { storeId, data } = req.body;
+  logger.debug(`Direct store update for ID: ${storeId}`);
+  logger.debug(`Update payload:`, data);
+
+  if (!poolConnected) {
+    return res.status(503).json({
+      success: false,
+      error: 'Database not connected'
+    });
+  }
+
+  try {
+    // 1. Check if store exists
+    const storeCheck = await pool.request()
+      .input('Store_ID', sql.VarChar(50), storeId)
+      .query('SELECT Store_ID FROM Stores_Master WHERE Store_ID = @Store_ID');
+    
+    if (storeCheck.recordset.length === 0) {
+      return res.json({ 
+        success: false, 
+        error: 'Store not found' 
+      });
+    }
+
+    // 2. Validate required fields
+    if (!data.Store_Name || data.Store_Name.trim() === '') {
+      return res.json({ 
+        success: false, 
+        error: 'Store Name cannot be empty' 
+      });
+    }
+    if (!data.Region || data.Region.trim() === '') {
+      return res.json({ 
+        success: false, 
+        error: 'Region cannot be empty' 
+      });
+    }
+
+    // 3. Build direct query with proper parameter handling
+    const request = pool.request()
+      .input('Store_ID', sql.VarChar(50), storeId)
+      .input('Store_Name', sql.NVarChar(255), data.Store_Name.trim())
+      .input('Region', sql.NVarChar(255), data.Region.trim())
+      .input('State', sql.NVarChar(50), data.State?.trim() || null)
+      .input('Address', sql.NVarChar(255), data.Address?.trim() || null)
+      .input('Active', sql.NVarChar(50), data.Active || 'Active')
+      .input('Supplier_Code', sql.NVarChar(50), data.Supplier_Code?.trim() || null);
+    
+    // Handle boolean fields
+    ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SPECIAL_FRIDAY', 'SPECIAL_SUNDAY'].forEach(day => {
+      const value = data[day] === true || data[day] === 'TRUE' || data[day] === '1';
+      request.input(day, sql.Bit, value ? 1 : 0);
+    });
+
+    // 4. Execute simple update query
+    const query = `
+      UPDATE Stores_Master 
+      SET 
+        Store_Name = @Store_Name,
+        Region = @Region,
+        State = @State,
+        Address = @Address,
+        Active = @Active,
+        Supplier_Code = @Supplier_Code,
+        SUNDAY = @SUNDAY,
+        MONDAY = @MONDAY,
+        TUESDAY = @TUESDAY,
+        WEDNESDAY = @WEDNESDAY,
+        THURSDAY = @THURSDAY,
+        FRIDAY = @FRIDAY,
+        SATURDAY = @SATURDAY,
+        SPECIAL_FRIDAY = @SPECIAL_FRIDAY,
+        SPECIAL_SUNDAY = @SPECIAL_SUNDAY,
+        Updated_At = GETDATE()
+      WHERE Store_ID = @Store_ID;
+      
+      SELECT * FROM Stores_Master WHERE Store_ID = @Store_ID;
+    `;
+
+    const result = await request.query(query);
+    logger.info(`Store ${storeId} updated successfully via direct update`);
+    
+    // 5. Return success with updated store data
+    if (result.recordset.length > 0) {
+      // Filter out timestamp fields from response
+      const { Created_At, Updated_At, ...cleanStore } = result.recordset[0];
+      res.json({
+        success: true,
+        message: 'Store updated successfully',
+        data: cleanStore
+      });
+    } else {
+      res.json({ 
+        success: true, 
+        message: 'Store updated successfully' 
+      });
+    }
+  } catch (err) {
+    logger.error(`Error in direct update for store ${storeId}:`, err);
+    res.json({ 
+      success: false, 
+      error: err.message
+    });
+  }
+});
+
 // Serve static files with cache busting
 app.use(express.static(__dirname, {
   etag: false,
