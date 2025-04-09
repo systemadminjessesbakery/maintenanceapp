@@ -3,234 +3,572 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Adjustment Profile Selections - Jesse's Bakery</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+    <title>Adjustment Profiles</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        body { padding-top: 56px; background-color: #f8f9fa; }
-        .container-fluid { padding: 2rem; }
-        .table th, .table td { vertical-align: middle; }
-        .table select.form-select {
-            min-width: 150px;
-            padding: 0.3rem 0.5rem;
-            font-size: 0.9rem;
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
         }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .selector-group {
+            flex: 1;
+            min-width: 250px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        
+        select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-bottom: 10px;
+        }
+        
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        
+        button:hover {
+            background-color: #45a049;
+        }
+        
+        .btn-secondary {
+            background-color: #2196F3;
+        }
+        
+        .btn-secondary:hover {
+            background-color: #0b7dda;
+        }
+        
+        .btn-danger {
+            background-color: #f44336;
+        }
+        
+        .btn-danger:hover {
+            background-color: #d32f2f;
+        }
+        
+        .table-container {
+            overflow-x: auto;
+            margin-top: 20px;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        th {
+            background-color: #4CAF50;
+            color: white;
+            text-align: left;
+            padding: 12px;
+        }
+        
+        td {
+            border: 1px solid #ddd;
+            padding: 8px;
+        }
+        
+        tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+        
+        tr:hover {
+            background-color: #ddd;
+        }
+        
+        .checkbox-cell {
+            text-align: center;
+        }
+        
+        .selected-row {
+            background-color: #e3f2fd !important;
+        }
+        
+        .actions {
+            margin: 20px 0;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
         .status-message {
-            margin-top: 1rem;
-            padding: 0.75rem 1.25rem;
-            border-radius: 0.25rem;
-            display: none; /* Hidden by default */
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px;
+            border-radius: 5px;
+            display: none;
+            z-index: 100;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
         }
+        
         .status-message.success {
-            color: #155724;
             background-color: #d4edda;
-            border-color: #c3e6cb;
+            color: #155724;
+            border: 1px solid #c3e6cb;
         }
+        
         .status-message.error {
-            color: #721c24;
             background-color: #f8d7da;
-            border-color: #f5c6cb;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
         }
+        
+        .basket-details {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+            display: none;
+        }
+        
+        .basket-title {
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        
+        .basket-properties {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 10px;
+        }
+        
+        .basket-property {
+            padding: 8px;
+            background-color: white;
+            border-radius: 4px;
+            border: 1px solid #eee;
+        }
+        
+        .property-name {
+            font-weight: bold;
+        }
+        
+        .search-box {
+            margin-bottom: 15px;
+        }
+        
+        .search-box input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        
         .loading {
             text-align: center;
-            padding: 2rem;
-            font-style: italic;
+            padding: 20px;
+            font-size: 18px;
         }
-        .card {
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        
+        .back-link {
+            display: inline-block;
+            margin-bottom: 20px;
+            color: #2196F3;
+            text-decoration: none;
+        }
+        
+        .back-link:hover {
+            text-decoration: underline;
         }
     </style>
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
-        <div class="container-fluid">
-            <a class="navbar-brand" href="/">Jesse's Bakery</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav">
-                    <li class="nav-item">
-                        <a class="nav-link" href="/">Home</a>
-                    </li>
-                    <!-- Add other nav links if needed -->
-                </ul>
+    <div class="container">
+        <a href="/" class="back-link"><i class="fas fa-arrow-left"></i> Back to Menu</a>
+        <h1>Adjustment Profiles</h1>
+        
+        <div class="controls">
+            <div class="selector-group">
+                <label for="selector-type">Select Basket Type:</label>
+                <select id="selector-type">
+                    <option value="">-- Select Basket Type --</option>
+                </select>
+            </div>
+            
+            <div class="selector-group">
+                <label for="product-basket">Select Product Basket:</label>
+                <select id="product-basket">
+                    <option value="">-- Select Product Basket --</option>
+                </select>
             </div>
         </div>
-    </nav>
-
-    <div class="container-fluid">
-        <h2 class="mb-4">Adjustment Profile Selections</h2>
-        <div id="status-message" class="status-message"></div>
-        <div id="loading" class="loading">Loading data...</div>
         
-        <div class="card">
-            <div class="card-body">
-                <div class="table-responsive">
-                    <table id="profilesTable" class="table table-bordered table-striped" style="display: none;"> <!-- Hidden initially -->
-                        <thead class="table-light">
-                            <tr>
-                                <th>Store ID</th>
-                                <th>Store Name</th>
-                                <th>Sunday</th>
-                                <th>Monday</th>
-                                <th>Tuesday</th>
-                                <th>Wednesday</th>
-                                <th>Thursday</th>
-                                <th>Friday</th>
-                                <th>Saturday</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <!-- Data will be populated here -->
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+        <div id="basket-details" class="basket-details">
+            <div class="basket-title" id="basket-title"></div>
+            <div class="basket-properties" id="basket-properties"></div>
+        </div>
+        
+        <div class="actions">
+            <button id="apply-btn" onclick="applyToStores()"><i class="fas fa-check"></i> Apply to Selected Stores</button>
+            <button class="btn-secondary" onclick="selectAllStores()"><i class="fas fa-check-square"></i> Select All</button>
+            <button class="btn-danger" onclick="deselectAllStores()"><i class="fas fa-square"></i> Deselect All</button>
+            <span id="selected-count">0 stores selected</span>
+        </div>
+        
+        <div class="search-box">
+            <input type="text" id="store-search" placeholder="Search stores..." oninput="filterStores()">
+        </div>
+        
+        <div class="table-container">
+            <table id="stores-table">
+                <thead>
+                    <tr>
+                        <th width="40px"></th>
+                        <th>Store ID</th>
+                        <th>Store Name</th>
+                        <th>Region</th>
+                        <th>State</th>
+                    </tr>
+                </thead>
+                <tbody id="stores-body"></tbody>
+            </table>
         </div>
     </div>
-
-    <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <div id="loading" class="loading">Loading data...</div>
+    <div id="status-message" class="status-message"></div>
     
     <script>
-        $(document).ready(function() {
-            let selectionsData = [];
-            let availableProfiles = [];
-            const daysOfWeek = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
-
-            function showStatusMessage(message, isSuccess) {
-                const statusDiv = $('#status-message');
-                statusDiv.text(message);
-                statusDiv.removeClass('success error').addClass(isSuccess ? 'success' : 'error');
-                statusDiv.fadeIn();
-                setTimeout(() => {
-                    statusDiv.fadeOut();
-                }, 5000); // Hide after 5 seconds
-            }
-
-            async function fetchData() {
-                console.log('Fetching adjustment profiles data...');
-                $('#loading').show();
-                $('#profilesTable').hide();
-
-                try {
-                    const response = await fetch('/api/adjustment-profiles');
-                    if (!response.ok) {
-                        const errorText = await response.text();
-                        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
-                    }
-                    const data = await response.json();
-                    selectionsData = data.selections || [];
-                    availableProfiles = data.profileNames || [];
-                    console.log(`Received ${selectionsData.length} selections and ${availableProfiles.length} profiles.`);
-                    populateTable();
-                } catch (error) {
-                    console.error('Error fetching data:', error);
-                    showStatusMessage(`Error loading data: ${error.message}`, false);
-                    $('#loading').text('Error loading data. Please try again later.');
-                } finally {
-                    $('#loading').hide();
-                    $('#profilesTable').show();
-                }
-            }
-
-            function populateTable() {
-                const tableBody = $('#profilesTable tbody');
-                tableBody.empty(); // Clear existing rows
-
-                if (selectionsData.length === 0) {
-                    tableBody.append('<tr><td colspan="9" class="text-center">No profile selections found.</td></tr>');
-                    return;
-                }
-
-                selectionsData.forEach(item => {
-                    let rowHtml = `<tr>
-                        <td>${item.Store_ID}</td>
-                        <td>${item.Store_Name}</td>`;
-
-                    daysOfWeek.forEach(day => {
-                        rowHtml += `<td>${createProfileDropdown(item.Store_ID, day, item[day])}</td>`;
-                    });
-
-                    rowHtml += `</tr>`;
-                    tableBody.append(rowHtml);
-                });
-
-                // Add change listener after dropdowns are added to the DOM
-                tableBody.find('.profile-select').on('change', handleProfileChange);
-            }
-
-            function createProfileDropdown(storeId, day, selectedProfile) {
-                let optionsHtml = '<option value="">- Select -</option>'; // Default empty option
-                availableProfiles.forEach(profile => {
-                    const isSelected = profile === selectedProfile ? ' selected' : '';
-                    optionsHtml += `<option value="${profile}"${isSelected}>${profile}</option>`;
-                });
-
-                return `<select class="form-select form-select-sm profile-select" 
-                                data-store-id="${storeId}" 
-                                data-day="${day}" 
-                                data-original-value="${selectedProfile || ''}">
-                            ${optionsHtml}
-                        </select>`;
-            }
-
-            async function handleProfileChange() {
-                const selectElement = $(this);
-                const storeId = selectElement.data('store-id');
-                const day = selectElement.data('day');
-                const newProfile = selectElement.val();
-                const originalProfile = selectElement.data('original-value');
-
-                console.log(`Profile change detected: Store=${storeId}, Day=${day}, NewValue=${newProfile}, Original=${originalProfile}`);
-
-                // No change if the value is the same
-                if (newProfile === originalProfile) {
-                    return; 
-                }
-
-                // Optimistic UI update (or wait for success?)
-                // For now, let's wait for success before updating data-original-value
-                selectElement.prop('disabled', true); // Disable dropdown during update
-
-                try {
-                    const response = await fetch('/api/adjustment-profiles/update', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({ 
-                            Store_ID: storeId, 
-                            DayOfWeek: day, 
-                            NewProfileName: newProfile 
-                        })
-                    });
-
-                    const result = await response.json();
-
-                    if (!response.ok || !result.success) {
-                        throw new Error(result.error || 'Failed to update profile');
-                    }
-
-                    showStatusMessage(`Successfully updated ${day} profile for ${storeId}.`, true);
-                    // Update the original value marker on success
-                    selectElement.data('original-value', newProfile);
-
-                } catch (error) {
-                    console.error('Error updating profile:', error);
-                    showStatusMessage(`Error updating profile for ${storeId} (${day}): ${error.message}`, false);
-                    // Revert dropdown to original value on error
-                    selectElement.val(originalProfile);
-                } finally {
-                    selectElement.prop('disabled', false); // Re-enable dropdown
-                }
-            }
-
-            // Initial data load
+        let baskets = [];
+        let stores = [];
+        let basketSelectors = [];
+        let selectedBasket = null;
+        let selectedStores = new Set();
+        
+        window.onload = function() {
             fetchData();
-        });
+        };
+        
+        async function fetchData() {
+            try {
+                const response = await fetch('/api/adjustment-profiles');
+                if (!response.ok) {
+                    throw new Error(`Server returned ${response.status}: ${await response.text()}`);
+                }
+                
+                const data = await response.json();
+                baskets = data.baskets || [];
+                stores = data.stores || [];
+                basketSelectors = data.basketSelectors || [];
+                
+                populateSelectors();
+                populateStoresTable();
+                
+                document.getElementById('loading').style.display = 'none';
+            } catch (error) {
+                console.error('Error fetching data:', error);
+                showStatusMessage('Failed to load data: ' + error.message, false);
+                document.getElementById('loading').innerHTML = 'Error loading data. Please try refreshing the page.';
+            }
+        }
+        
+        function populateSelectors() {
+            const selectorType = document.getElementById('selector-type');
+            
+            // Clear existing options
+            selectorType.innerHTML = '<option value="">-- Select Basket Type --</option>';
+            
+            // Add basket selectors
+            basketSelectors.forEach(selector => {
+                const option = document.createElement('option');
+                option.value = selector;
+                option.textContent = formatSelectorName(selector);
+                selectorType.appendChild(option);
+            });
+            
+            // Add change event
+            selectorType.addEventListener('change', handleSelectorChange);
+        }
+        
+        function formatSelectorName(selector) {
+            return selector.replace(/_/g, ' ');
+        }
+        
+        function handleSelectorChange() {
+            const selectorType = document.getElementById('selector-type');
+            const selectedSelector = selectorType.value;
+            
+            if (!selectedSelector) {
+                resetProductBasketDropdown();
+                return;
+            }
+            
+            populateProductBaskets(selectedSelector);
+        }
+        
+        function resetProductBasketDropdown() {
+            const productBasket = document.getElementById('product-basket');
+            productBasket.innerHTML = '<option value="">-- Select Product Basket --</option>';
+            document.getElementById('basket-details').style.display = 'none';
+            selectedBasket = null;
+        }
+        
+        function populateProductBaskets(selector) {
+            const productBasket = document.getElementById('product-basket');
+            resetProductBasketDropdown();
+            
+            // Filter baskets with valid values for the selected selector
+            const filteredBaskets = baskets.filter(basket => 
+                basket[selector] !== null && 
+                basket[selector] !== undefined && 
+                basket[selector] !== '' && 
+                basket[selector] !== 0
+            );
+            
+            // Group by Product_Family
+            const families = [...new Set(filteredBaskets.map(basket => basket.Product_Family))].sort();
+            
+            families.forEach(family => {
+                const familyGroup = document.createElement('optgroup');
+                familyGroup.label = family;
+                
+                const familyBaskets = filteredBaskets
+                    .filter(basket => basket.Product_Family === family)
+                    .sort((a, b) => a.Product_Description.localeCompare(b.Product_Description));
+                
+                familyBaskets.forEach(basket => {
+                    const option = document.createElement('option');
+                    option.value = basket.Product_ID;
+                    option.textContent = basket.Product_Description;
+                    option.dataset.basket = JSON.stringify(basket);
+                    familyGroup.appendChild(option);
+                });
+                
+                productBasket.appendChild(familyGroup);
+            });
+            
+            // Add change event
+            productBasket.onchange = function() {
+                const selected = this.options[this.selectedIndex];
+                if (selected && selected.dataset.basket) {
+                    selectedBasket = JSON.parse(selected.dataset.basket);
+                    showBasketDetails(selectedBasket);
+                } else {
+                    document.getElementById('basket-details').style.display = 'none';
+                    selectedBasket = null;
+                }
+            };
+        }
+        
+        function showBasketDetails(basket) {
+            const detailsDiv = document.getElementById('basket-details');
+            const titleDiv = document.getElementById('basket-title');
+            const propertiesDiv = document.getElementById('basket-properties');
+            
+            titleDiv.textContent = `${basket.Product_Description} (${basket.Product_Family})`;
+            propertiesDiv.innerHTML = '';
+            
+            // Add all non-null properties
+            for (const selector of basketSelectors) {
+                if (basket[selector] !== null && basket[selector] !== undefined) {
+                    const propertyDiv = document.createElement('div');
+                    propertyDiv.className = 'basket-property';
+                    
+                    const nameSpan = document.createElement('span');
+                    nameSpan.className = 'property-name';
+                    nameSpan.textContent = formatSelectorName(selector) + ': ';
+                    
+                    const valueSpan = document.createElement('span');
+                    valueSpan.textContent = basket[selector];
+                    
+                    propertyDiv.appendChild(nameSpan);
+                    propertyDiv.appendChild(valueSpan);
+                    propertiesDiv.appendChild(propertyDiv);
+                }
+            }
+            
+            detailsDiv.style.display = 'block';
+        }
+        
+        function populateStoresTable() {
+            const tableBody = document.getElementById('stores-body');
+            tableBody.innerHTML = '';
+            
+            stores.forEach(store => {
+                const row = document.createElement('tr');
+                row.dataset.storeId = store.Store_ID;
+                row.onclick = function() {
+                    toggleStoreSelection(store.Store_ID, this);
+                };
+                
+                // Checkbox column
+                const checkboxCell = document.createElement('td');
+                checkboxCell.className = 'checkbox-cell';
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.id = `store-${store.Store_ID}`;
+                checkbox.onclick = function(e) {
+                    e.stopPropagation();
+                };
+                checkboxCell.appendChild(checkbox);
+                row.appendChild(checkboxCell);
+                
+                // Data columns
+                ['Store_ID', 'Store_Name', 'Region', 'State'].forEach(field => {
+                    const cell = document.createElement('td');
+                    cell.textContent = store[field] || '';
+                    row.appendChild(cell);
+                });
+                
+                tableBody.appendChild(row);
+            });
+            
+            updateSelectedCount();
+        }
+        
+        function toggleStoreSelection(storeId, row) {
+            const checkbox = document.getElementById(`store-${storeId}`);
+            checkbox.checked = !checkbox.checked;
+            
+            if (checkbox.checked) {
+                selectedStores.add(storeId);
+                row.classList.add('selected-row');
+            } else {
+                selectedStores.delete(storeId);
+                row.classList.remove('selected-row');
+            }
+            
+            updateSelectedCount();
+        }
+        
+        function selectAllStores() {
+            const checkboxes = document.querySelectorAll('#stores-table input[type="checkbox"]');
+            const visibleRows = Array.from(document.querySelectorAll('#stores-table tbody tr'))
+                .filter(row => row.style.display !== 'none');
+            
+            visibleRows.forEach(row => {
+                const storeId = row.dataset.storeId;
+                const checkbox = document.getElementById(`store-${storeId}`);
+                checkbox.checked = true;
+                selectedStores.add(storeId);
+                row.classList.add('selected-row');
+            });
+            
+            updateSelectedCount();
+        }
+        
+        function deselectAllStores() {
+            const checkboxes = document.querySelectorAll('#stores-table input[type="checkbox"]');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = false;
+            });
+            
+            document.querySelectorAll('#stores-table tbody tr').forEach(row => {
+                row.classList.remove('selected-row');
+            });
+            
+            selectedStores.clear();
+            updateSelectedCount();
+        }
+        
+        function updateSelectedCount() {
+            document.getElementById('selected-count').textContent = `${selectedStores.size} stores selected`;
+        }
+        
+        function filterStores() {
+            const searchText = document.getElementById('store-search').value.toLowerCase();
+            const rows = document.querySelectorAll('#stores-table tbody tr');
+            
+            rows.forEach(row => {
+                const storeId = row.dataset.storeId;
+                const store = stores.find(s => s.Store_ID === storeId);
+                
+                if (!store) return;
+                
+                const matchesSearch = 
+                    store.Store_ID.toLowerCase().includes(searchText) ||
+                    store.Store_Name.toLowerCase().includes(searchText) ||
+                    (store.Region && store.Region.toLowerCase().includes(searchText)) ||
+                    (store.State && store.State.toLowerCase().includes(searchText));
+                
+                row.style.display = matchesSearch ? '' : 'none';
+            });
+        }
+        
+        function applyToStores() {
+            if (!selectedBasket) {
+                showStatusMessage('Please select a product basket', false);
+                return;
+            }
+            
+            if (selectedStores.size === 0) {
+                showStatusMessage('Please select at least one store', false);
+                return;
+            }
+            
+            const selectorType = document.getElementById('selector-type').value;
+            if (!selectorType) {
+                showStatusMessage('Please select a basket type', false);
+                return;
+            }
+            
+            const selectorValue = selectedBasket[selectorType];
+            const storePlural = selectedStores.size === 1 ? 'store' : 'stores';
+            
+            const confirmed = confirm(`Apply ${selectedBasket.Product_Description} with ${formatSelectorName(selectorType)}=${selectorValue} to ${selectedStores.size} ${storePlural}?`);
+            
+            if (confirmed) {
+                // In a real application, this would make an API call to save the settings
+                console.log('Applying adjustment profile:', {
+                    productId: selectedBasket.Product_ID,
+                    selectorType: selectorType,
+                    selectorValue: selectorValue,
+                    stores: Array.from(selectedStores)
+                });
+                
+                showStatusMessage(`Successfully applied adjustments to ${selectedStores.size} ${storePlural}`, true);
+            }
+        }
+        
+        function showStatusMessage(message, isSuccess) {
+            const statusDiv = document.getElementById('status-message');
+            statusDiv.textContent = message;
+            statusDiv.className = isSuccess ? 'status-message success' : 'status-message error';
+            statusDiv.style.display = 'block';
+            
+            setTimeout(() => {
+                statusDiv.style.display = 'none';
+            }, 5000);
+        }
     </script>
-
 </body>
 </html> 
