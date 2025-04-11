@@ -253,17 +253,17 @@
                 <thead>
                     <tr>
                         <th width="40px"></th>
-                        <th>Store ID</th>
-                        <th>Store Name</th>
+                                <th>Store ID</th>
+                                <th>Store Name</th>
                         <th>Region</th>
                         <th>State</th>
-                    </tr>
-                </thead>
+                            </tr>
+                        </thead>
                 <tbody id="stores-body"></tbody>
-            </table>
+                    </table>
         </div>
     </div>
-    
+
     <div id="loading" class="loading">Loading data...</div>
     <div id="status-message" class="status-message"></div>
     
@@ -277,15 +277,15 @@
         window.onload = function() {
             fetchData();
         };
-        
-        async function fetchData() {
-            try {
-                const response = await fetch('/api/adjustment-profiles');
-                if (!response.ok) {
+
+            async function fetchData() {
+                try {
+                    const response = await fetch('/api/adjustment-profiles');
+                    if (!response.ok) {
                     throw new Error(`Server returned ${response.status}: ${await response.text()}`);
-                }
+                    }
                 
-                const data = await response.json();
+                    const data = await response.json();
                 baskets = data.baskets || [];
                 stores = data.stores || [];
                 basketSelectors = data.basketSelectors || [];
@@ -294,8 +294,8 @@
                 populateStoresTable();
                 
                 document.getElementById('loading').style.display = 'none';
-            } catch (error) {
-                console.error('Error fetching data:', error);
+                } catch (error) {
+                    console.error('Error fetching data:', error);
                 showStatusMessage('Failed to load data: ' + error.message, false);
                 document.getElementById('loading').innerHTML = 'Error loading data. Please try refreshing the page.';
             }
@@ -329,9 +329,9 @@
             
             if (!selectedSelector) {
                 resetProductBasketDropdown();
-                return;
-            }
-            
+                    return;
+                }
+
             populateProductBaskets(selectedSelector);
         }
         

@@ -202,6 +202,33 @@
             `).join('');
         }
 
+        // Function to show status messages
+        function showStatus(message, isSuccess) {
+            const statusDiv = document.getElementById('statusMessage');
+            statusDiv.textContent = message;
+            statusDiv.className = `status-message ${isSuccess ? 'success' : 'error'}`;
+            statusDiv.style.display = 'block';
+            setTimeout(() => {
+                statusDiv.style.display = 'none';
+            }, 3000);
+        }
+
+        // Function to retry loading data
+        async function retryLoad() {
+            const data = await fetchRegionData();
+            if (data.length > 0) {
+                renderRegions(data);
+            }
+        }
+
+        // Initialize the page
+        document.addEventListener('DOMContentLoaded', async () => {
+            const data = await fetchRegionData();
+            if (data.length > 0) {
+                renderRegions(data);
+            }
+        });
+
         // Function to save changes
         async function saveChanges() {
             const saveButton = document.querySelector('.save-button');
@@ -245,26 +272,6 @@
                 saveButton.innerHTML = 'Save Changes';
             }
         }
-
-        function showStatus(message, isSuccess) {
-            const statusElement = document.getElementById('statusMessage');
-            statusElement.textContent = message;
-            statusElement.className = `status-message ${isSuccess ? 'success' : 'error'}`;
-            statusElement.style.display = 'block';
-            setTimeout(() => {
-                statusElement.style.display = 'none';
-            }, 3000);
-        }
-
-        async function retryLoad() {
-            const regions = await fetchRegionData();
-            if (regions.length > 0) {
-                renderRegions(regions);
-            }
-        }
-
-        // Initialize page
-        document.addEventListener('DOMContentLoaded', retryLoad);
     </script>
 </body>
 </html> 
