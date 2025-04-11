@@ -236,14 +236,14 @@
                     <td>${row.Product_ID || ''}</td>
                     <td>${row.Store_Name || ''}</td>
                     <td>${row.Product_Name || ''}</td>
-                    <td>${row.SUNDAY || ''}</td>
-                    <td>${row.MONDAY || ''}</td>
-                    <td>${row.TUESDAY || ''}</td>
-                    <td>${row.WEDNESDAY || ''}</td>
-                    <td>${row.THURSDAY || ''}</td>
-                    <td>${row.FRIDAY || ''}</td>
-                    <td>${row.SATURDAY || ''}</td>
-                    <td>${row.WEEK_TOTAL || ''}</td>
+                    <td>${row.SUNDAY !== null && row.SUNDAY !== undefined ? row.SUNDAY : ''}</td>
+                    <td>${row.MONDAY !== null && row.MONDAY !== undefined ? row.MONDAY : ''}</td>
+                    <td>${row.TUESDAY !== null && row.TUESDAY !== undefined ? row.TUESDAY : ''}</td>
+                    <td>${row.WEDNESDAY !== null && row.WEDNESDAY !== undefined ? row.WEDNESDAY : ''}</td>
+                    <td>${row.THURSDAY !== null && row.THURSDAY !== undefined ? row.THURSDAY : ''}</td>
+                    <td>${row.FRIDAY !== null && row.FRIDAY !== undefined ? row.FRIDAY : ''}</td>
+                    <td>${row.SATURDAY !== null && row.SATURDAY !== undefined ? row.SATURDAY : ''}</td>
+                    <td>${row.WEEK_TOTAL !== null && row.WEEK_TOTAL !== undefined ? row.WEEK_TOTAL : ''}</td>
                     <td>${row.Date_Created || ''}</td>
                 </tr>
             `).join('');
