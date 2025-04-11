@@ -1323,6 +1323,8 @@ app.get('/api/manual-adjustments', async (req, res) => {
                 SELECT 
                     ma.Store_ID,
                     ma.Product_ID,
+                    ma.Store_Name,
+                    ma.Product_Name,
                     ma.SUNDAY,
                     ma.MONDAY,
                     ma.TUESDAY,
@@ -1330,29 +1332,18 @@ app.get('/api/manual-adjustments', async (req, res) => {
                     ma.THURSDAY,
                     ma.FRIDAY,
                     ma.SATURDAY,
-                    ma.SPECIAL_FRIDAY,
-                    ma.SPECIAL_SUNDAY,
-                    ma.WEEK_TOTAL,
-                    s.Store_Name,
-                    s.Region,
-                    s.State,
-                    p.Product_Description,
-                    p.Product_Family
+                    ma.[WEEK TOTAL],
+                    ma.[Date Created]
                 FROM Manual_Adjustments ma
-                JOIN Stores_Master s ON ma.Store_ID = s.Store_ID
-                JOIN Products_Standard_Baskets p ON ma.Product_ID = p.Product_ID
-                WHERE ma.WEEK_TOTAL <> 0
-                ORDER BY s.Store_Name, p.Product_Description;
+                WHERE ma.[WEEK TOTAL] <> 0
+                ORDER BY ma.Store_Name, ma.Product_Name;
             `);
 
         const adjustments = result.recordset.map(row => ({
             Store_ID: row.Store_ID,
             Product_ID: row.Product_ID,
             Store_Name: row.Store_Name,
-            Region: row.Region,
-            State: row.State,
-            Product_Description: row.Product_Description,
-            Product_Family: row.Product_Family,
+            Product_Name: row.Product_Name,
             SUNDAY: row.SUNDAY,
             MONDAY: row.MONDAY,
             TUESDAY: row.TUESDAY,
@@ -1360,9 +1351,8 @@ app.get('/api/manual-adjustments', async (req, res) => {
             THURSDAY: row.THURSDAY,
             FRIDAY: row.FRIDAY,
             SATURDAY: row.SATURDAY,
-            SPECIAL_FRIDAY: row.SPECIAL_FRIDAY,
-            SPECIAL_SUNDAY: row.SPECIAL_SUNDAY,
-            WEEK_TOTAL: row.WEEK_TOTAL
+            WEEK_TOTAL: row['WEEK TOTAL'],
+            Date_Created: row['Date Created']
         }));
 
         res.json(adjustments);
