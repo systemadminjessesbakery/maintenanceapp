@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manual Adjustments - Jesse's Bakery</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+
+        .header {
+            background-color: #4CAF50;
+            color: white;
+            padding: 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .back-button {
+            background: none;
+            border: none;
+            color: white;
+            cursor: pointer;
+            font-size: 1.2rem;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            text-decoration: none;
+        }
+
+        .back-button:hover {
+            opacity: 0.9;
+        }
+
+        .title {
+            margin: 0;
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .header-right {
+            display: flex;
+            gap: 10px;
+        }
+
+        .edit-button, .save-button, .cancel-button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .edit-button {
+            background-color: #2196F3;
+            color: white;
+        }
+
+        .save-button {
+            background-color: #4CAF50;
+            color: white;
+        }
+
+        .cancel-button {
+            background-color: #f44336;
+            color: white;
+        }
+
+        .edit-button:disabled, .save-button:disabled, .cancel-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: white;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            margin-top: 20px;
+        }
+
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+
+        th {
+            background-color: #f8f9fa;
+            font-weight: bold;
+            color: #333;
+        }
+
+        tr:hover {
+            background-color: #f5f5f5;
+        }
+
+        .status-message {
+            display: none;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 20px;
+        }
+
+        .status-message.success {
+            background-color: #dff0d8;
+            color: #3c763d;
+            border: 1px solid #d6e9c6;
+        }
+
+        .status-message.error {
+            background-color: #f2dede;
+            color: #a94442;
+            border: 1px solid #ebccd1;
+        }
+
+        input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+        }
+
+        input[type="text"], input[type="number"] {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+    </style>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="header">
+        <div class="header-left">
+            <a href="index.html" class="back-button">
+                <i class="fas fa-arrow-left"></i>
+                Back
+            </a>
+            <h1 class="title">Manual Adjustments</h1>
+        </div>
+        <div class="header-right">
+            <button id="editButton" onclick="enableEditing()" class="edit-button">Edit</button>
+            <button id="saveButton" onclick="saveAllChanges()" class="save-button" disabled>Save Changes</button>
+            <button id="cancelButton" onclick="cancelEditing()" class="cancel-button" disabled>Cancel</button>
+        </div>
+    </div>
+
+    <table id="adjustmentsTable">
+        <thead>
+            <tr>
+                <th>Store ID</th>
+                <th>Product ID</th>
+                <th>Store Name</th>
+                <th>Product Name</th>
+                <th>Sunday</th>
+                <th>Monday</th>
+                <th>Tuesday</th>
+                <th>Wednesday</th>
+                <th>Thursday</th>
+                <th>Friday</th>
+                <th>Saturday</th>
+                <th>Week Total</th>
+                <th>Date Created</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- Data will be populated here -->
+        </tbody>
+    </table>
+
+    <div id="statusMessage" class="status-message"></div>
+
+    <script>
+        let isEditingEnabled = false;
+        let originalData = [];
+
+        async function fetchData() {
+            try {
+                const response = await fetch('/api/manual-adjustments', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + sessionStorage.getItem('token')
+                    },
+                    credentials: 'include'
+                });
+
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        window.location.href = 'login.html';
+                        return;
+                    }
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                originalData = data;
+                populateTable(data);
+            } catch (error) {
+                console.error('Error fetching data:', error);
+                showStatus('Error loading data: ' + error.message, false);
+            }
+        }
+
+        function populateTable(data) {
+            const tbody = document.querySelector('#adjustmentsTable tbody');
+            tbody.innerHTML = data.map(row => `
+                <tr>
+                    <td>${row.Store_ID || ''}</td>
+                    <td>${row.Product_ID || ''}</td>
+                    <td>${row.Store_Name || ''}</td>
+                    <td>${row.Product_Name || ''}</td>
+                    <td>${row.SUNDAY === 1 ? '✓' : ''}</td>
+                    <td>${row.MONDAY === 1 ? '✓' : ''}</td>
+                    <td>${row.TUESDAY === 1 ? '✓' : ''}</td>
+                    <td>${row.WEDNESDAY === 1 ? '✓' : ''}</td>
+                    <td>${row.THURSDAY === 1 ? '✓' : ''}</td>
+                    <td>${row.FRIDAY === 1 ? '✓' : ''}</td>
+                    <td>${row.SATURDAY === 1 ? '✓' : ''}</td>
+                    <td>${row['WEEK TOTAL'] || ''}</td>
+                    <td>${row['Date Created'] || ''}</td>
+                </tr>
+            `).join('');
+
+            // Add click handlers to cells
+            tbody.querySelectorAll('td').forEach(cell => {
+                cell.addEventListener('click', () => startEditing(cell));
+            });
+        }
+
+        function enableEditing() {
+            isEditingEnabled = true;
+            document.getElementById('editButton').disabled = true;
+            document.getElementById('saveButton').disabled = false;
+            document.getElementById('cancelButton').disabled = false;
+        }
+
+        function disableEditing() {
+            isEditingEnabled = false;
+            document.getElementById('editButton').disabled = false;
+            document.getElementById('saveButton').disabled = true;
+            document.getElementById('cancelButton').disabled = true;
+        }
+
+        function cancelEditing() {
+            populateTable(originalData);
+            disableEditing();
+        }
+
+        function startEditing(cell) {
+            if (!isEditingEnabled) return;
+            
+            const column = cell.cellIndex;
+            const columnName = getColumnName(column);
+            const currentValue = cell.textContent.trim();
+            
+            cell.textContent = '';
+            
+            if (['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'].includes(columnName)) {
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.checked = currentValue === '✓';
+                cell.appendChild(checkbox);
+            } else if (columnName === 'WEEK TOTAL') {
+                const input = document.createElement('input');
+                input.type = 'number';
+                input.value = currentValue || '0';
+                input.style.width = '60px';
+                cell.appendChild(input);
+                input.focus();
+            } else if (!['Store_ID', 'Product_ID', 'Store_Name', 'Product_Name', 'Date Created'].includes(columnName)) {
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.value = currentValue;
+                input.style.width = '100%';
+                cell.appendChild(input);
+                input.focus();
+            }
+        }
+
+        function getColumnName(index) {
+            const columns = [
+                'Store_ID', 'Product_ID', 'Store_Name', 'Product_Name', 'SUNDAY', 'MONDAY', 'TUESDAY',
+                'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'WEEK TOTAL', 'Date Created'
+            ];
+            return columns[index];
+        }
+
+        async function updateAdjustment(storeId, productId, updatedData) {
+            try {
+                const response = await fetch(`/api/manual-adjustments/${storeId}/${productId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + sessionStorage.getItem('token')
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify(updatedData)
+                });
+
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        window.location.href = 'login.html';
+                        return;
+                    }
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                return await response.json();
+            } catch (error) {
+                console.error('Error updating adjustment:', error);
+                throw error;
+            }
+        }
+
+        async function saveAllChanges() {
+            const saveButton = document.getElementById('saveButton');
+            saveButton.disabled = true;
+            saveButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+
+            try {
+                const rows = document.querySelectorAll('#adjustmentsTable tbody tr');
+                const updates = [];
+
+                for (const row of rows) {
+                    const storeId = row.cells[0].textContent.trim();
+                    const productId = row.cells[1].textContent.trim();
+                    const updatedData = {};
+
+                    for (let i = 4; i < row.cells.length - 1; i++) {
+                        const cell = row.cells[i];
+                        const columnName = getColumnName(i);
+                        let value = cell.textContent.trim();
+
+                        if (cell.querySelector('input[type="checkbox"]')) {
+                            value = cell.querySelector('input[type="checkbox"]').checked ? '1' : '0';
+                        } else if (cell.querySelector('input[type="number"]')) {
+                            value = cell.querySelector('input[type="number"]').value;
+                        } else if (cell.querySelector('input[type="text"]')) {
+                            value = cell.querySelector('input[type="text"]').value;
+                        }
+
+                        updatedData[columnName] = value;
+                    }
+
+                    updates.push(updateAdjustment(storeId, productId, updatedData));
+                }
+
+                await Promise.all(updates);
+                showStatus('All changes saved successfully', true);
+                
+                disableEditing();
+                fetchData(); // Refresh the data
+            } catch (error) {
+                console.error('Error saving changes:', error);
+                showStatus('Error saving changes: ' + error.message, false);
+            } finally {
+                saveButton.disabled = false;
+                saveButton.innerHTML = 'Save Changes';
+            }
+        }
+
+        function showStatus(message, isSuccess) {
+            const statusDiv = document.getElementById('statusMessage');
+            statusDiv.textContent = message;
+            statusDiv.className = `status-message ${isSuccess ? 'success' : 'error'}`;
+            statusDiv.style.display = 'block';
+            setTimeout(() => {
+                statusDiv.style.display = 'none';
+            }, 3000);
+        }
+
+        // Initialize the page
+        document.addEventListener('DOMContentLoaded', fetchData);
+    </script>
+</body>
+</html> 
