@@ -1652,8 +1652,6 @@ app.post('/api/manual-adjustments/batch', async (req, res) => {
         await transaction.rollback();
         console.error('Error in batch update:', error);
         res.status(500).json({ message: 'Error updating manual adjustments: ' + error.message });
-    } finally {
-        pool.close();
     }
 });
 
@@ -1906,8 +1904,64 @@ app.post('/api/products/batch', async (req, res) => {
         await transaction.rollback();
         console.error('Error in batch update:', error);
         res.status(500).json({ message: 'Error updating products: ' + error.message });
-    } finally {
-        pool.close();
+    }
+});
+
+// Get all products
+app.get('/api/products', async (req, res) => {
+    if (!poolConnected) {
+        return res.status(503).json({
+            error: 'Database not connected',
+            message: 'The database connection is not available'
+        });
+    }
+
+    try {
+        const query = `
+            SELECT 
+                Product_ID,
+                Product_Description,
+                Product_Family,
+                WoolworthsCode,
+                ColesCode,
+                HarrisFarmCode,
+                OtherCode,
+                BakingUOM,
+                BakingQuantity,
+                UnitPerProduct,
+                Wholesale_Cost_AUD,
+                RRP_AUD,
+                Product_Description_Production
+            FROM Products_Master
+            ORDER BY Product_ID;
+        `;
+
+        const result = await pool.request().query(query);
+        
+        // Format the response
+        const products = result.recordset.map(row => ({
+            Product_ID: row.Product_ID,
+            Product_Description: row.Product_Description,
+            Product_Family: row.Product_Family,
+            WoolworthsCode: row.WoolworthsCode,
+            ColesCode: row.ColesCode,
+            HarrisFarmCode: row.HarrisFarmCode,
+            OtherCode: row.OtherCode,
+            BakingUOM: row.BakingUOM,
+            BakingQuantity: row.BakingQuantity,
+            UnitPerProduct: row.UnitPerProduct,
+            Wholesale_Cost_AUD: row.Wholesale_Cost_AUD,
+            RRP_AUD: row.RRP_AUD,
+            Product_Description_Production: row.Product_Description_Production
+        }));
+
+        res.json(products);
+    } catch (error) {
+        console.error('Error fetching products:', error);
+        res.status(500).json({ 
+            error: 'Error fetching products',
+            details: error.message
+        });
     }
 });
 
