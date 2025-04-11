@@ -660,10 +660,24 @@ app.get('/api/products', async (req, res) => {
   }
   
   try {
-    // Get all products
+    // Get all products with explicit field selection
     const productsResult = await pool.request()
-            .query(`
-        SELECT * FROM Products_Master
+      .query(`
+        SELECT 
+          Product_ID,
+          Product_Description,
+          Product_Family,
+          WoolworthsCode,
+          ColesCode,
+          HarrisFarmCode,
+          OtherCode,
+          BakingUOM,
+          BakingQuantity,
+          UnitPerProduct,
+          Wholesale_Cost_AUD,
+          RRP_AUD,
+          Product_Description_Production
+        FROM Products_Master
         ORDER BY Product_Description;
       `);
     
@@ -677,12 +691,12 @@ app.get('/api/products', async (req, res) => {
     
     const families = familiesResult.recordset.map(r => r.Product_Family);
 
-        res.json({
+    res.json({
       products: productsResult.recordset,
       families: families,
       lastRunDate: new Date().toISOString()
-        });
-    } catch (err) {
+    });
+  } catch (err) {
     logger.error('Error fetching products data:', err);
     res.status(500).json({ 
       error: 'Error fetching products data',
