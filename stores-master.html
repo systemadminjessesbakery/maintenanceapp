@@ -466,20 +466,49 @@
             color: #999;
             margin-top: 5px;
         }
+        .header-right {
+            display: flex;
+            gap: 10px;
+        }
+        .edit-button, .save-button, .cancel-button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .edit-button {
+            background-color: #2196F3;
+            color: white;
+        }
+        .save-button {
+            background-color: #4CAF50;
+            color: white;
+        }
+        .cancel-button {
+            background-color: #f44336;
+            color: white;
+        }
+        .edit-button:disabled, .save-button:disabled, .cancel-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <button class="back-button btn" onclick="window.location.href='/'">
-                <i class="fas fa-arrow-left"></i> Back to Menu
-            </button>
-            <div class="logo">
-                <img src="/logo" alt="Jesse's Bakery Logo">
+            <div class="header-left">
+                <a href="index.html" class="back-button">
+                    <i class="fas fa-arrow-left"></i>
+                    Back
+                </a>
+                <h1 class="title">Stores Master</h1>
             </div>
-            <div class="title-container">
-                <h1 class="main-title">Stores Master Editor</h1>
-                <p class="subtitle">Manage store information and settings</p>
+            <div class="header-right">
+                <button id="editButton" onclick="enableEditing()" class="edit-button">Edit</button>
+                <button id="saveButton" onclick="saveAllChanges()" class="save-button" disabled>Save Changes</button>
+                <button id="cancelButton" onclick="cancelEditing()" class="cancel-button" disabled>Cancel</button>
             </div>
         </div>
         
@@ -526,17 +555,36 @@
             <table id="storesTable">
                 <thead>
                     <tr>
-                        <th>Store ID <span class="filter-icon" onclick="showFilter('Store_ID', this)">🔍</span></th>
-                        <th>Store Name <span class="filter-icon" onclick="showFilter('Store_Name', this)">🔍</span></th>
-                        <th>Region <span class="filter-icon" onclick="showFilter('Region', this)">🔍</span></th>
-                        <th>State <span class="filter-icon" onclick="showFilter('State', this)">🔍</span></th>
-                        <th>Active <span class="filter-icon" onclick="showFilter('Active', this)">🔍</span></th>
-                        <th>Address <span class="filter-icon" onclick="showFilter('Address', this)">🔍</span></th>
-                        <th>Supplier Code <span class="filter-icon" onclick="showFilter('Supplier_Code', this)">🔍</span></th>
-                        <th>Shelf Limit <span class="filter-icon" onclick="showFilter('Shelf_Limit', this)">🔍</span></th>
+                        <th>Store ID</th>
+                        <th>Store Name</th>
+                        <th>Region</th>
+                        <th>State</th>
+                        <th>Active</th>
+                        <th>Run ID</th>
+                        <th>Shelf Limit</th>
+                        <th>Latitude</th>
+                        <th>Longitude</th>
+                        <th>Address</th>
+                        <th>Supplier Code</th>
+                        <th>Sunday</th>
+                        <th>Monday</th>
+                        <th>Tuesday</th>
+                        <th>Wednesday</th>
+                        <th>Thursday</th>
+                        <th>Friday</th>
+                        <th>Saturday</th>
+                        <th>Invoiced</th>
+                        <th>Xero Code</th>
+                        <th>Xero Customer ID</th>
                         <th>Special Friday</th>
                         <th>Special Sunday</th>
-                        <th>Actions</th>
+                        <th>Sun Override</th>
+                        <th>Mon Override</th>
+                        <th>Tue Override</th>
+                        <th>Wed Override</th>
+                        <th>Thu Override</th>
+                        <th>Fri Override</th>
+                        <th>Sat Override</th>
                     </tr>
                 </thead>
                 <tbody></tbody>
@@ -1468,7 +1516,7 @@
         
         // Function to save changes for all rows
         async function saveAllChanges() {
-            const saveButton = document.getElementById('saveAllButton');
+            const saveButton = document.getElementById('saveButton');
             saveButton.disabled = true;
             saveButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
             
@@ -1492,7 +1540,7 @@
                         } else if (cell.dataset.isCheckbox === 'true') {
                             const checkbox = cell.querySelector('input[type="checkbox"]');
                             value = checkbox ? checkbox.checked : false;
-                        } else if (!['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'].includes(column)) {
+                        } else {
                             const input = cell.querySelector('input');
                             value = input ? input.value : '';
                         }
@@ -1529,6 +1577,33 @@
             document.getElementById('saveAllButton').disabled = true;
             document.getElementById('cancelAllButton').disabled = true;
             saveButton.innerHTML = 'Save All Changes';
+        }
+
+        async function updateStore(storeId, updatedData) {
+            try {
+                const response = await fetch(`/api/stores/${storeId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + sessionStorage.getItem('token')
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify(updatedData)
+                });
+
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        window.location.href = 'login.html';
+                        return;
+                    }
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                return await response.json();
+            } catch (error) {
+                console.error('Error updating store:', error);
+                throw error;
+            }
         }
 
         // Start fetching data when page loads
