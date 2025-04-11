@@ -340,30 +340,60 @@
                 for (const row of rows) {
                     const storeId = row.cells[0].textContent.trim();
                     const productId = row.cells[1].textContent.trim();
-                    const updatedData = {};
+                    const updatedData = {
+                        Store_ID: storeId,
+                        Product_ID: productId
+                    };
 
+                    // Only include days that have been modified
                     for (let i = 4; i < row.cells.length - 1; i++) {
                         const cell = row.cells[i];
                         const columnName = getColumnName(i);
                         let value = cell.textContent.trim();
 
                         if (cell.querySelector('input[type="checkbox"]')) {
-                            value = cell.querySelector('input[type="checkbox"]').checked ? '1' : '0';
+                            value = cell.querySelector('input[type="checkbox"]').checked ? 1 : 0;
                         } else if (cell.querySelector('input[type="number"]')) {
-                            value = cell.querySelector('input[type="number"]').value;
-                        } else if (cell.querySelector('input[type="text"]')) {
-                            value = cell.querySelector('input[type="text"]').value;
+                            value = parseFloat(cell.querySelector('input[type="number"]').value) || 0;
                         }
 
-                        updatedData[columnName] = value;
+                        // Only include non-zero values
+                        if (value !== 0) {
+                            updatedData[columnName] = value;
+                        }
                     }
 
-                    updates.push(updateAdjustment(storeId, productId, updatedData));
+                    // Only include rows that have actual changes
+                    if (Object.keys(updatedData).length > 2) { // More than just Store_ID and Product_ID
+                        updates.push(updatedData);
+                    }
                 }
 
-                await Promise.all(updates);
+                if (updates.length === 0) {
+                    showStatus('No changes to save', false);
+                    return;
+                }
+
+                const response = await fetch('/api/manual-adjustments/batch', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + sessionStorage.getItem('token')
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify(updates)
+                });
+
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        window.location.href = 'login.html';
+                        return;
+                    }
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+                }
+
                 showStatus('All changes saved successfully', true);
-                
                 disableEditing();
                 fetchData(); // Refresh the data
             } catch (error) {

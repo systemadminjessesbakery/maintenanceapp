@@ -1578,6 +1578,72 @@ app.get('/api/adjustment-profiles', async (req, res) => {
   }
 });
 
+// Batch update manual adjustments
+app.post('/api/manual-adjustments/batch', async (req, res) => {
+    const updates = req.body;
+    if (!Array.isArray(updates) || updates.length === 0) {
+        return res.status(400).json({ message: 'Invalid request: updates must be a non-empty array' });
+    }
+
+    const pool = await getConnection();
+    const transaction = await pool.transaction();
+
+    try {
+        for (const update of updates) {
+            const { Store_ID, Product_ID, ...dayUpdates } = update;
+            
+            if (!Store_ID || !Product_ID) {
+                throw new Error('Store_ID and Product_ID are required for each update');
+            }
+
+            // Build the SET clause dynamically based on provided updates
+            const setClauses = [];
+            const params = [];
+            
+            for (const [day, value] of Object.entries(dayUpdates)) {
+                if (day !== 'Store_ID' && day !== 'Product_ID') {
+                    setClauses.push(`${day} = @${day}`);
+                    params.push({ name: day, value: value });
+                }
+            }
+
+            if (setClauses.length === 0) {
+                continue; // Skip if no actual updates
+            }
+
+            const query = `
+                MERGE INTO Manual_Adjustments AS target
+                USING (VALUES (@Store_ID, @Product_ID)) AS source (Store_ID, Product_ID)
+                ON target.Store_ID = source.Store_ID AND target.Product_ID = source.Product_ID
+                WHEN MATCHED THEN
+                    UPDATE SET ${setClauses.join(', ')}
+                WHEN NOT MATCHED THEN
+                    INSERT (Store_ID, Product_ID, ${Object.keys(dayUpdates).join(', ')})
+                    VALUES (@Store_ID, @Product_ID, ${Object.keys(dayUpdates).map(k => `@${k}`).join(', ')});
+            `;
+
+            const request = transaction.request();
+            request.input('Store_ID', Store_ID);
+            request.input('Product_ID', Product_ID);
+            
+            for (const param of params) {
+                request.input(param.name, param.value);
+            }
+
+            await request.query(query);
+        }
+
+        await transaction.commit();
+        res.json({ message: 'All updates completed successfully' });
+    } catch (error) {
+        await transaction.rollback();
+        console.error('Error in batch update:', error);
+        res.status(500).json({ message: 'Error updating manual adjustments: ' + error.message });
+    } finally {
+        pool.close();
+    }
+});
+
 // Serve static files with cache busting
 app.use(express.static(__dirname, {
   etag: false,
