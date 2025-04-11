@@ -1521,45 +1521,45 @@
         async function saveAllChanges() {
             const saveButton = document.getElementById('saveAllButton');
             saveButton.disabled = true;
-            saveButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
-            
-            const rows = document.querySelectorAll('#storesTable tbody tr');
+            saveButton.innerHTML = 'Saving...';
+
             const updates = [];
+            const rows = document.querySelectorAll('#storesTable tbody tr');
             
             for (const row of rows) {
-                const cells = row.getElementsByTagName('td');
-                const storeUpdates = { Store_ID: row.dataset.storeId };
-                let hasChanges = false;
-                
+                const storeId = row.getAttribute('data-store-id');
+                if (!storeId) continue;
+
+                const updatedData = {
+                    Store_ID: storeId
+                };
+
+                // Only include cells that have been modified
+                const cells = row.cells;
                 for (let i = 0; i < cells.length; i++) {
                     const cell = cells[i];
-                    if (cell.dataset.editable === 'true') {
-                        const column = cell.dataset.column;
-                        let value;
-                        
-                        if (column === 'Shelf_Limit') {
-                            const input = cell.querySelector('input');
-                            value = input ? parseInt(input.value) || 0 : 0;
-                        } else if (cell.dataset.isCheckbox === 'true') {
-                            const checkbox = cell.querySelector('input[type="checkbox"]');
-                            value = checkbox ? checkbox.checked : false;
-                        } else {
-                            const input = cell.querySelector('input');
-                            value = input ? input.value : '';
-                        }
-                        
-                        if (value !== undefined) {
-                            storeUpdates[column] = value;
-                            hasChanges = true;
+                    const input = cell.querySelector('input, select');
+                    if (input && input.dataset.original !== input.value) {
+                        const columnName = getColumnName(i);
+                        if (columnName) {
+                            let value = input.value;
+                            
+                            // Handle boolean values
+                            if (input.type === 'checkbox') {
+                                value = input.checked ? 'TRUE' : 'FALSE';
+                            }
+                            
+                            updatedData[columnName] = value;
                         }
                     }
                 }
-                
-                if (hasChanges) {
-                    updates.push(storeUpdates);
+
+                // Only include stores that have actual changes
+                if (Object.keys(updatedData).length > 1) { // More than just Store_ID
+                    updates.push(updatedData);
                 }
             }
-            
+
             if (updates.length > 0) {
                 try {
                     const response = await fetch(`${API_BASE_URL}/api/stores/batch`, {
