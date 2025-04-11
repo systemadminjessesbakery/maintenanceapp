@@ -1579,31 +1579,82 @@
             saveButton.innerHTML = 'Save All Changes';
         }
 
-        async function updateStore(storeId, updatedData) {
+        async function updateStore(storeId, data) {
             try {
-                const response = await fetch(`/api/stores/${storeId}`, {
-                    method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': 'Bearer ' + sessionStorage.getItem('token')
-                    },
-                    credentials: 'include',
-                    body: JSON.stringify(updatedData)
+                // Clean and validate data before sending
+                const cleanData = sanitizeStoreData(data);
+                console.log("Sending clean data to server:", cleanData);
+                
+                const response = await fetch('/api/direct-store-update', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        storeId: storeId,
+                        data: cleanData
+                    })
                 });
-
-                if (!response.ok) {
-                    if (response.status === 401) {
-                        window.location.href = 'login.html';
-                        return;
-                    }
-                    throw new Error(`HTTP error! status: ${response.status}`);
+                
+                const responseText = await response.text();
+                let responseData;
+                
+                try {
+                    // Try to parse as JSON first
+                    responseData = JSON.parse(responseText);
+                } catch (jsonError) {
+                    // If not JSON, use text as is
+                    responseData = { message: responseText };
                 }
-
-                return await response.json();
+                
+                if (!response.ok) {
+                    lastApiError = {
+                        status: response.status,
+                        statusText: response.statusText,
+                        data: responseData
+                    };
+                    
+                    const errorMessage = responseData.error || responseData.details || 
+                                        `Server error (${response.status}: ${response.statusText})`;
+                    throw new Error(errorMessage);
+                }
+                
+                console.log("Update successful:", responseData);
+                return responseData;
             } catch (error) {
-                console.error('Error updating store:', error);
+                console.error("Update failed:", error);
                 throw error;
             }
+        }
+
+        function sanitizeStoreData(data) {
+            const cleanData = {};
+            
+            // Process each field according to its expected type
+            for (const [key, value] of Object.entries(data)) {
+                // Handle boolean fields consistently
+                if (['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 
+                     'SATURDAY', 'SPECIAL_FRIDAY', 'SPECIAL_SUNDAY'].includes(key)) {
+                    cleanData[key] = value === true || value === 'TRUE' || value === 'true' ? 'TRUE' : 'FALSE';
+                }
+                // Handle Shelf_Limit as a number
+                else if (key === 'Shelf_Limit') {
+                    const numValue = value === '' ? null : parseInt(value);
+                    cleanData[key] = isNaN(numValue) ? null : numValue;
+                }
+                // Handle empty values for optional fields
+                else if (value === '' && !['Store_Name', 'Region'].includes(key)) {
+                    cleanData[key] = null;
+                }
+                // Handle other fields
+                else {
+                    cleanData[key] = value;
+                }
+            }
+            
+            // Remove any timestamp fields that might cause issues
+            delete cleanData.Created_At;
+            delete cleanData.Updated_At;
+            
+            return cleanData;
         }
 
         // Start fetching data when page loads
