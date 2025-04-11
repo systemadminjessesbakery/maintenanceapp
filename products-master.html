@@ -345,7 +345,7 @@
             <thead>
                 <tr>
                     <th>Product ID<i class="fas fa-filter filter-icon" onclick="showFilter('Product_ID')"></i></th>
-                    <th>Description<i class="fas fa-filter filter-icon" onclick="showFilter('Description')"></i></th>
+                    <th>Description<i class="fas fa-filter filter-icon" onclick="showFilter('Product_Description')"></i></th>
                     <th>Product Family<i class="fas fa-filter filter-icon" onclick="showFilter('Product_Family')"></i></th>
                     <th>Unit Per Product</th>
                     <th>Wholesale Cost (AUD)</th>
@@ -434,12 +434,12 @@
             tbody.innerHTML = data.map(product => `
                 <tr>
                     <td>${product.Product_ID}</td>
-                    <td>${product.Description}</td>
+                    <td>${product.Product_Description}</td>
                     <td>${product.Product_Family}</td>
-                    <td>${product.Unit_Per_Product}</td>
-                    <td>$${parseFloat(product.Wholesale_Cost_AUD).toFixed(2)}</td>
-                    <td>$${parseFloat(product.RRP_AUD).toFixed(2)}</td>
-                    <td>${product.Production_Description || ''}</td>
+                    <td>${product.UnitPerProduct}</td>
+                    <td>$${parseFloat(product.Wholesale_Cost_AUD || 0).toFixed(2)}</td>
+                    <td>$${parseFloat(product.RRP_AUD || 0).toFixed(2)}</td>
+                    <td>${product.Product_Description_Production || ''}</td>
                     <td>
                         <button class="edit-button" onclick="editProduct('${product.Product_ID}')">
                             <i class="fas fa-edit"></i>
@@ -531,12 +531,12 @@
             if (!product) return;
             
             document.getElementById('productId').value = product.Product_ID;
-            document.getElementById('description').value = product.Description;
+            document.getElementById('description').value = product.Product_Description;
             document.getElementById('productFamily').value = product.Product_Family;
-            document.getElementById('unitPerProduct').value = product.Unit_Per_Product;
+            document.getElementById('unitPerProduct').value = product.UnitPerProduct;
             document.getElementById('wholesaleCost').value = product.Wholesale_Cost_AUD;
             document.getElementById('rrp').value = product.RRP_AUD;
-            document.getElementById('productionDescription').value = product.Production_Description || '';
+            document.getElementById('productionDescription').value = product.Product_Description_Production || '';
             
             const modal = document.getElementById('editModal');
             modal.style.display = 'block';
@@ -558,12 +558,12 @@
             
             const updatedProduct = {
                 Product_ID: document.getElementById('productId').value,
-                Description: document.getElementById('description').value,
+                Product_Description: document.getElementById('description').value,
                 Product_Family: document.getElementById('productFamily').value,
-                Unit_Per_Product: parseInt(document.getElementById('unitPerProduct').value),
+                UnitPerProduct: parseInt(document.getElementById('unitPerProduct').value),
                 Wholesale_Cost_AUD: parseFloat(document.getElementById('wholesaleCost').value),
                 RRP_AUD: parseFloat(document.getElementById('rrp').value),
-                Production_Description: document.getElementById('productionDescription').value
+                Product_Description_Production: document.getElementById('productionDescription').value
             };
             
             try {
@@ -617,12 +617,12 @@
             
             const rows = filteredProducts.map(product => [
                 product.Product_ID,
-                product.Description,
+                product.Product_Description,
                 product.Product_Family,
-                product.Unit_Per_Product,
+                product.UnitPerProduct,
                 `$${parseFloat(product.Wholesale_Cost_AUD).toFixed(2)}`,
                 `$${parseFloat(product.RRP_AUD).toFixed(2)}`,
-                product.Production_Description || ''
+                product.Product_Description_Production || ''
             ]);
             
             doc.autoTable({
