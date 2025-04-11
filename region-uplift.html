@@ -73,16 +73,66 @@
 
         .region-input {
             display: flex;
-            align-items: center;
+            flex-direction: column;
             gap: 10px;
+            align-items: center;
         }
 
-        input[type="number"] {
-            width: 100px;
-            padding: 8px;
-            border: 1px solid #ddd;
+        .slider-container {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 8px;
             border-radius: 4px;
-            font-size: 16px;
+            background: #ddd;
+            outline: none;
+            opacity: 0.7;
+            transition: opacity 0.2s;
+        }
+
+        input[type="range"]:hover {
+            opacity: 1;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #4CAF50;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #4CAF50;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        input[type="range"]::-webkit-slider-thumb:hover {
+            background: #45a049;
+        }
+
+        input[type="range"]::-moz-range-thumb:hover {
+            background: #45a049;
+        }
+
+        .percentage-display {
+            min-width: 60px;
+            text-align: center;
+            font-weight: bold;
+            color: #4CAF50;
         }
 
         .save-button {
@@ -190,16 +240,28 @@
                 <div class="region-card">
                     <h3>${region.Region}</h3>
                     <div class="region-input">
-                        <input type="number" 
-                               id="region-${region.Region}"
-                               value="${region.Percentage}"
-                               min="0"
-                               max="100"
-                               step="0.1">
-                        <span>%</span>
+                        <div class="slider-container">
+                            <span>-100%</span>
+                            <input type="range" 
+                                   id="region-${region.Region}"
+                                   value="${region.Percentage * 100}"
+                                   min="-100"
+                                   max="100"
+                                   step="0.1"
+                                   oninput="updatePercentageDisplay(this)">
+                            <span>100%</span>
+                        </div>
+                        <div class="percentage-display" id="display-${region.Region}">${(region.Percentage * 100).toFixed(1)}%</div>
                     </div>
                 </div>
             `).join('');
+        }
+
+        // Function to update percentage display
+        function updatePercentageDisplay(slider) {
+            const displayId = `display-${slider.id.split('-')[1]}`;
+            const display = document.getElementById(displayId);
+            display.textContent = `${parseFloat(slider.value).toFixed(1)}%`;
         }
 
         // Function to show status messages
@@ -237,7 +299,7 @@
 
             const regions = Array.from(document.querySelectorAll('.region-card')).map(card => {
                 const regionName = card.querySelector('h3').textContent;
-                const percentage = parseFloat(card.querySelector('input').value);
+                const percentage = parseFloat(card.querySelector('input').value) / 100; // Convert back to decimal
                 return {
                     Region: regionName,
                     Percentage: percentage
