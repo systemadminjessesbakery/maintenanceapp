@@ -1335,7 +1335,14 @@ app.get('/api/manual-adjustments', async (req, res) => {
                     ma.[WEEK TOTAL],
                     ma.[Date Created]
                 FROM Manual_Adjustments ma
-                WHERE ma.[WEEK TOTAL] <> 0
+                WHERE (ma.[WEEK TOTAL] IS NULL OR ma.[WEEK TOTAL] <> 0)
+                   OR ma.SUNDAY <> 0 
+                   OR ma.MONDAY <> 0 
+                   OR ma.TUESDAY <> 0 
+                   OR ma.WEDNESDAY <> 0 
+                   OR ma.THURSDAY <> 0 
+                   OR ma.FRIDAY <> 0 
+                   OR ma.SATURDAY <> 0
                 ORDER BY ma.Store_Name, ma.Product_Name;
             `);
 
