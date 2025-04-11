@@ -1301,6 +1301,106 @@ app.get('/logo', (req, res) => {
   }
 });
 
+// Get manual adjustments with non-zero values
+app.get('/api/manual-adjustments', async (req, res) => {
+    if (!poolConnected) {
+        return res.status(503).json({
+            error: 'Database not connected',
+            message: 'The database connection is not available'
+        });
+    }
+
+    try {
+        const query = `
+            SELECT 
+                ma.Store_ID,
+                ma.Product_ID,
+                s.Store_Name,
+                p.Product_Name,
+                ma.SUNDAY,
+                ma.MONDAY,
+                ma.TUESDAY,
+                ma.WEDNESDAY,
+                ma.THURSDAY,
+                ma.FRIDAY,
+                ma.SATURDAY,
+                (ma.SUNDAY + ma.MONDAY + ma.TUESDAY + ma.WEDNESDAY + ma.THURSDAY + ma.FRIDAY + ma.SATURDAY) as [WEEK TOTAL],
+                ma.Created_At as [Date Created]
+            FROM Manual_Adjustments ma
+            LEFT JOIN Stores_Master s ON ma.Store_ID = s.Store_ID
+            LEFT JOIN Products_Standard_Baskets p ON ma.Product_ID = p.Product_ID
+            WHERE 
+                (ma.SUNDAY != 0 OR ma.MONDAY != 0 OR ma.TUESDAY != 0 OR 
+                 ma.WEDNESDAY != 0 OR ma.THURSDAY != 0 OR ma.FRIDAY != 0 OR 
+                 ma.SATURDAY != 0)
+            ORDER BY ma.Store_ID, ma.Product_ID;
+        `;
+
+        const result = await pool.request().query(query);
+        res.json(result.recordset);
+    } catch (error) {
+        console.error('Error fetching manual adjustments:', error);
+        res.status(500).json({ 
+            error: 'Error fetching manual adjustments',
+            details: error.message
+        });
+    }
+});
+
+// Update a single manual adjustment
+app.put('/api/manual-adjustments/:storeId/:productId', async (req, res) => {
+    const { storeId, productId } = req.params;
+    const updates = req.body;
+
+    if (!poolConnected) {
+        return res.status(503).json({
+            error: 'Database not connected',
+            message: 'The database connection is not available'
+        });
+    }
+
+    try {
+        const request = pool.request()
+            .input('Store_ID', sql.VarChar(50), storeId)
+            .input('Product_ID', sql.VarChar(50), productId)
+            .input('SUNDAY', sql.Int, updates.SUNDAY || 0)
+            .input('MONDAY', sql.Int, updates.MONDAY || 0)
+            .input('TUESDAY', sql.Int, updates.TUESDAY || 0)
+            .input('WEDNESDAY', sql.Int, updates.WEDNESDAY || 0)
+            .input('THURSDAY', sql.Int, updates.THURSDAY || 0)
+            .input('FRIDAY', sql.Int, updates.FRIDAY || 0)
+            .input('SATURDAY', sql.Int, updates.SATURDAY || 0);
+
+        const query = `
+            MERGE INTO Manual_Adjustments AS target
+            USING (VALUES (@Store_ID, @Product_ID)) AS source (Store_ID, Product_ID)
+            ON target.Store_ID = source.Store_ID AND target.Product_ID = source.Product_ID
+            WHEN MATCHED THEN
+                UPDATE SET 
+                    SUNDAY = @SUNDAY,
+                    MONDAY = @MONDAY,
+                    TUESDAY = @TUESDAY,
+                    WEDNESDAY = @WEDNESDAY,
+                    THURSDAY = @THURSDAY,
+                    FRIDAY = @FRIDAY,
+                    SATURDAY = @SATURDAY,
+                    Updated_At = GETDATE()
+            WHEN NOT MATCHED THEN
+                INSERT (Store_ID, Product_ID, SUNDAY, MONDAY, TUESDAY, WEDNESDAY, THURSDAY, FRIDAY, SATURDAY, Created_At, Updated_At)
+                VALUES (@Store_ID, @Product_ID, @SUNDAY, @MONDAY, @TUESDAY, @WEDNESDAY, @THURSDAY, @FRIDAY, @SATURDAY, GETDATE(), GETDATE());
+        `;
+
+        await request.query(query);
+        res.json({ message: 'Adjustment updated successfully' });
+    } catch (error) {
+        console.error('Error updating manual adjustment:', error);
+        res.status(500).json({ 
+            error: 'Error updating manual adjustment',
+            details: error.message
+        });
+    }
+});
+
 // Default route handler for unmatched routes
 app.use((req, res) => {
   res.status(404).send(`
