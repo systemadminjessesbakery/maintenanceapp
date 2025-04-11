@@ -678,27 +678,22 @@
             const columns = Object.keys(data[0]).filter(col => !excludeColumns.includes(col));
             
             // Add headers with filter icons
-                columns.forEach(column => {
-                    const th = document.createElement('th');
+            columns.forEach(column => {
+                const th = document.createElement('th');
                 th.innerHTML = `${column} <span class="filter-icon" onclick="showFilter('${column}', this)">🔍</span>`;
                 if (activeFilters[column]) {
                     th.classList.add('filtered');
                 }
-                    thead.appendChild(th);
-                });
-            
-            // Add action column header
-            const actionTh = document.createElement('th');
-            actionTh.textContent = 'Actions';
-            thead.appendChild(actionTh);
+                thead.appendChild(th);
+            });
 
-                // Create table rows
+            // Create table rows
             data.forEach((row, index) => {
-                    const tr = document.createElement('tr');
+                const tr = document.createElement('tr');
                 tr.dataset.storeId = row.Store_ID;
                 
-                    columns.forEach(column => {
-                        const td = document.createElement('td');
+                columns.forEach(column => {
+                    const td = document.createElement('td');
                     if (['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'].includes(column)) {
                         const checkbox = document.createElement('input');
                         checkbox.type = 'checkbox';
@@ -746,19 +741,10 @@
                             td.dataset.isCheckbox = 'true';
                         }
                     }
-                        tr.appendChild(td);
-                    });
+                    tr.appendChild(td);
+                });
                 
-                // Add action buttons
-                const actionTd = document.createElement('td');
-                const viewBtn = document.createElement('button');
-                viewBtn.textContent = 'View';
-                viewBtn.className = 'btn btn-edit';
-                viewBtn.onclick = () => startEditing(tr);
-                actionTd.appendChild(viewBtn);
-                tr.appendChild(actionTd);
-                
-                    tbody.appendChild(tr);
+                tbody.appendChild(tr);
             });
         }
 
@@ -1079,7 +1065,7 @@
             originalData = null;
         }
 
-        function saveChanges(storeId) {
+        async function saveChanges(storeId) {
             if (!editingRow) return;
 
             const cells = editingRow.getElementsByTagName('td');
@@ -1109,7 +1095,13 @@
             }
 
             if (Object.keys(updates).length > 0) {
-                updateStore(storeId, updates);
+                try {
+                    await updateStore(storeId, updates);
+                } catch (error) {
+                    console.error(`Error updating store ${storeId}:`, error);
+                    showStatusMessage(`Error updating store ${storeId}: ${error.message}`, false);
+                    return;
+                }
             } else {
                 cancelEditing();
             }
@@ -1467,7 +1459,7 @@
             const rows = document.querySelectorAll('#storesTable tbody tr');
             rows.forEach(row => {
                 const cells = row.getElementsByTagName('td');
-                for (let i = 0; i < cells.length - 1; i++) {
+                for (let i = 0; i < cells.length; i++) {
                     const cell = cells[i];
                     if (cell.dataset.editable === 'true') {
                         const column = cell.dataset.column;
@@ -1491,10 +1483,6 @@
                         cell.classList.add('editing');
                     }
                 }
-                
-                // Update action cell
-                const actionCell = cells[cells.length - 1];
-                actionCell.innerHTML = `<button class="btn btn-save" onclick="saveChanges('${row.dataset.storeId}')">Save</button>`;
             });
             
             // Update button states
@@ -1516,19 +1504,19 @@
         
         // Function to save changes for all rows
         async function saveAllChanges() {
-            const saveButton = document.getElementById('saveButton');
+            const saveButton = document.getElementById('saveAllButton');
             saveButton.disabled = true;
             saveButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
             
             const rows = document.querySelectorAll('#storesTable tbody tr');
-            let hasChanges = false;
+            const updates = [];
             
             for (const row of rows) {
                 const cells = row.getElementsByTagName('td');
-                const updates = {};
-                const storeId = row.dataset.storeId;
+                const storeUpdates = { Store_ID: row.dataset.storeId };
+                let hasChanges = false;
                 
-                for (let i = 0; i < cells.length - 1; i++) {
+                for (let i = 0; i < cells.length; i++) {
                     const cell = cells[i];
                     if (cell.dataset.editable === 'true') {
                         const column = cell.dataset.column;
@@ -1546,28 +1534,46 @@
                         }
                         
                         if (value !== undefined) {
-                            updates[column] = value;
+                            storeUpdates[column] = value;
                             hasChanges = true;
                         }
                     }
                 }
                 
-                if (Object.keys(updates).length > 0) {
-                    try {
-                        await updateStore(storeId, updates);
-                    } catch (error) {
-                        console.error(`Error updating store ${storeId}:`, error);
-                        showStatusMessage(`Error updating store ${storeId}: ${error.message}`, false);
-                        saveButton.disabled = false;
-                        saveButton.innerHTML = 'Save All Changes';
-                        return;
-                    }
+                if (hasChanges) {
+                    updates.push(storeUpdates);
                 }
             }
             
-            if (hasChanges) {
-                showStatusMessage('All changes saved successfully', true);
-                await fetchData(); // Refresh the table
+            if (updates.length > 0) {
+                try {
+                    const response = await fetch(`${API_BASE_URL}/api/stores/batch`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(updates)
+                    });
+
+                    if (!response.ok) {
+                        if (response.status === 401) {
+                            window.location.href = '/login';
+                            return;
+                        }
+                        const errorData = await response.json();
+                        throw new Error(errorData.message || 'Failed to save changes');
+                    }
+
+                    const result = await response.json();
+                    showStatusMessage(result.message || 'All changes saved successfully', true);
+                    await fetchData(); // Refresh the table
+                } catch (error) {
+                    console.error('Error saving changes:', error);
+                    showStatusMessage(error.message || 'Error saving changes', false);
+                    saveButton.disabled = false;
+                    saveButton.innerHTML = 'Save All Changes';
+                    return;
+                }
             } else {
                 showStatusMessage('No changes to save', true);
             }
