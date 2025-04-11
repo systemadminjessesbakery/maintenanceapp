@@ -201,8 +201,7 @@
                     headers: {
                         'Content-Type': 'application/json',
                         'Authorization': 'Bearer ' + sessionStorage.getItem('token')
-                    },
-                    credentials: 'include'
+                    }
                 });
 
                 if (!response.ok) {
@@ -210,12 +209,19 @@
                         window.location.href = 'login.html';
                         return;
                     }
-                    throw new Error(`HTTP error! status: ${response.status}`);
+                    const errorText = await response.text();
+                    try {
+                        const errorData = JSON.parse(errorText);
+                        throw new Error(errorData.error || errorData.details || `Failed to fetch data (${response.status})`);
+                    } catch (jsonError) {
+                        throw new Error(`Failed to fetch data: ${errorText || response.statusText}`);
+                    }
                 }
 
                 const data = await response.json();
                 originalData = data;
                 populateTable(data);
+                showStatus('Data loaded successfully', true);
             } catch (error) {
                 console.error('Error fetching data:', error);
                 showStatus('Error loading data: ' + error.message, false);
@@ -385,7 +391,6 @@
                         'Content-Type': 'application/json',
                         'Authorization': 'Bearer ' + sessionStorage.getItem('token')
                     },
-                    credentials: 'include',
                     body: JSON.stringify(updates)
                 });
 
@@ -394,13 +399,18 @@
                         window.location.href = 'login.html';
                         return;
                     }
-                    const errorData = await response.json();
-                    throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+                    const errorText = await response.text();
+                    try {
+                        const errorData = JSON.parse(errorText);
+                        throw new Error(errorData.error || errorData.details || `Failed to save changes (${response.status})`);
+                    } catch (jsonError) {
+                        throw new Error(`Failed to save changes: ${errorText || response.statusText}`);
+                    }
                 }
 
-                showStatus('All changes saved successfully', true);
+                showStatus('Changes saved successfully', true);
+                await fetchData(); // Refresh the table
                 disableEditing();
-                fetchData(); // Refresh the data
             } catch (error) {
                 console.error('Error saving changes:', error);
                 showStatus('Error saving changes: ' + error.message, false);
