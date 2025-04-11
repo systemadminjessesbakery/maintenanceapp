@@ -128,6 +128,21 @@
             background: #45a049;
         }
 
+        input[type="range"]:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        input[type="range"]:disabled::-webkit-slider-thumb {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        input[type="range"]:disabled::-moz-range-thumb {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
         .percentage-display {
             min-width: 60px;
             text-align: center;
@@ -135,7 +150,14 @@
             color: #4CAF50;
         }
 
-        .save-button {
+        .button-container {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .edit-button, .save-button, .cancel-button {
             background-color: #4CAF50;
             color: white;
             border: none;
@@ -143,11 +165,22 @@
             border-radius: 4px;
             cursor: pointer;
             font-size: 16px;
-            margin-top: 20px;
         }
 
-        .save-button:hover {
-            background-color: #45a049;
+        .edit-button {
+            background-color: #2196F3;
+        }
+
+        .cancel-button {
+            background-color: #f44336;
+        }
+
+        .save-button:hover, .edit-button:hover {
+            opacity: 0.9;
+        }
+
+        .cancel-button:hover {
+            opacity: 0.9;
         }
 
         .status-message {
@@ -186,7 +219,11 @@
         <!-- Regions will be populated here -->
     </div>
 
-    <button onclick="saveChanges()" class="save-button">Save Changes</button>
+    <div class="button-container">
+        <button id="editButton" onclick="enableEditing()" class="edit-button">Edit</button>
+        <button id="saveButton" onclick="saveChanges()" class="save-button" disabled>Save Changes</button>
+        <button id="cancelButton" onclick="cancelEditing()" class="cancel-button" disabled>Cancel</button>
+    </div>
     <div id="statusMessage" class="status-message"></div>
 
     <script>
@@ -236,27 +273,67 @@
         // Function to render region cards
         function renderRegions(regions) {
             const grid = document.getElementById('regionGrid');
-            grid.innerHTML = regions.map(region => `
+            grid.innerHTML = regions.map(region => {
+                // Ensure the percentage is properly formatted
+                const percentageValue = parseFloat(region.Percentage) * 100;
+                return `
                 <div class="region-card">
                     <h3>${region.Region}</h3>
                     <div class="region-input">
-                        <input type="number" 
-                               id="region-${region.Region}"
-                               value="${Math.round(region.Percentage * 100)}"
-                               min="0"
-                               max="100"
-                               step="1">
-                        <span>%</span>
+                        <div class="slider-container">
+                            <span>-100%</span>
+                            <input type="range" 
+                                   id="region-${region.Region}"
+                                   value="${percentageValue}"
+                                   min="-100"
+                                   max="100"
+                                   step="1"
+                                   disabled
+                                   oninput="updatePercentageDisplay(this)">
+                            <span>100%</span>
+                        </div>
+                        <div class="percentage-display" id="display-${region.Region}">${percentageValue.toFixed(1)}%</div>
                     </div>
                 </div>
-            `).join('');
+            `;
+            }).join('');
         }
 
         // Function to update percentage display
         function updatePercentageDisplay(slider) {
             const displayId = `display-${slider.id.split('-')[1]}`;
             const display = document.getElementById(displayId);
-            display.textContent = `${parseFloat(slider.value).toFixed(1)}%`;
+            
+            // Snap to 0% if very close to 0
+            let value = parseFloat(slider.value);
+            if (Math.abs(value) < 1) {
+                value = 0;
+                slider.value = 0;
+            }
+            
+            display.textContent = `${value.toFixed(1)}%`;
+        }
+
+        // Function to enable editing
+        function enableEditing() {
+            const sliders = document.querySelectorAll('input[type="range"]');
+            sliders.forEach(slider => {
+                slider.disabled = false;
+            });
+            
+            document.getElementById('editButton').disabled = true;
+            document.getElementById('saveButton').disabled = false;
+            document.getElementById('cancelButton').disabled = false;
+        }
+
+        // Function to cancel editing
+        function cancelEditing() {
+            // Reload the data to reset to original values
+            retryLoad();
+            
+            document.getElementById('editButton').disabled = false;
+            document.getElementById('saveButton').disabled = true;
+            document.getElementById('cancelButton').disabled = true;
         }
 
         // Function to show status messages
@@ -288,7 +365,7 @@
 
         // Function to save changes
         async function saveChanges() {
-            const saveButton = document.querySelector('.save-button');
+            const saveButton = document.getElementById('saveButton');
             saveButton.disabled = true;
             saveButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
 
@@ -321,10 +398,19 @@
                 }
 
                 showStatus('Changes saved successfully', true);
+                
+                // Disable editing after successful save
+                const sliders = document.querySelectorAll('input[type="range"]');
+                sliders.forEach(slider => {
+                    slider.disabled = true;
+                });
+                
+                document.getElementById('editButton').disabled = false;
+                document.getElementById('saveButton').disabled = true;
+                document.getElementById('cancelButton').disabled = true;
             } catch (error) {
                 console.error('Error saving changes:', error);
                 showStatus('Error saving changes: ' + error.message, false);
-            } finally {
                 saveButton.disabled = false;
                 saveButton.innerHTML = 'Save Changes';
             }
