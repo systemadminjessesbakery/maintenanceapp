@@ -1315,43 +1315,57 @@ app.get('/logo', (req, res) => {
   }
 });
 
-// Get manual adjustments with non-zero values
+// Manual adjustments endpoints
 app.get('/api/manual-adjustments', async (req, res) => {
-    if (!poolConnected) {
-        return res.status(503).json({
-            error: 'Database not connected',
-            message: 'The database connection is not available'
-        });
-    }
-
     try {
-        const query = `
-            SELECT 
-                ma.Store_ID,
-                ma.Product_ID,
-                s.Store_Name,
-                p.Product_Name,
-                ma.SUNDAY,
-                ma.MONDAY,
-                ma.TUESDAY,
-                ma.WEDNESDAY,
-                ma.THURSDAY,
-                ma.FRIDAY,
-                ma.SATURDAY,
-                (ma.SUNDAY + ma.MONDAY + ma.TUESDAY + ma.WEDNESDAY + ma.THURSDAY + ma.FRIDAY + ma.SATURDAY) as [WEEK TOTAL],
-                ma.Created_At as [Date Created]
-            FROM Manual_Adjustments ma
-            LEFT JOIN Stores_Master s ON ma.Store_ID = s.Store_ID
-            LEFT JOIN Products_Standard_Baskets p ON ma.Product_ID = p.Product_ID
-            WHERE 
-                (ma.SUNDAY != 0 OR ma.MONDAY != 0 OR ma.TUESDAY != 0 OR 
-                 ma.WEDNESDAY != 0 OR ma.THURSDAY != 0 OR ma.FRIDAY != 0 OR 
-                 ma.SATURDAY != 0)
-            ORDER BY ma.Store_ID, ma.Product_ID;
-        `;
+        const result = await pool.request()
+            .query(`
+                SELECT 
+                    ma.Store_ID,
+                    ma.Product_ID,
+                    ma.SUNDAY,
+                    ma.MONDAY,
+                    ma.TUESDAY,
+                    ma.WEDNESDAY,
+                    ma.THURSDAY,
+                    ma.FRIDAY,
+                    ma.SATURDAY,
+                    ma.SPECIAL_FRIDAY,
+                    ma.SPECIAL_SUNDAY,
+                    ma.WEEK_TOTAL,
+                    s.Store_Name,
+                    s.Region,
+                    s.State,
+                    p.Product_Description,
+                    p.Product_Family
+                FROM Manual_Adjustments ma
+                JOIN Stores_Master s ON ma.Store_ID = s.Store_ID
+                JOIN Products_Standard_Baskets p ON ma.Product_ID = p.Product_ID
+                WHERE ma.WEEK_TOTAL <> 0
+                ORDER BY s.Store_Name, p.Product_Description;
+            `);
 
-        const result = await pool.request().query(query);
-        res.json(result.recordset);
+        const adjustments = result.recordset.map(row => ({
+            Store_ID: row.Store_ID,
+            Product_ID: row.Product_ID,
+            Store_Name: row.Store_Name,
+            Region: row.Region,
+            State: row.State,
+            Product_Description: row.Product_Description,
+            Product_Family: row.Product_Family,
+            SUNDAY: row.SUNDAY,
+            MONDAY: row.MONDAY,
+            TUESDAY: row.TUESDAY,
+            WEDNESDAY: row.WEDNESDAY,
+            THURSDAY: row.THURSDAY,
+            FRIDAY: row.FRIDAY,
+            SATURDAY: row.SATURDAY,
+            SPECIAL_FRIDAY: row.SPECIAL_FRIDAY,
+            SPECIAL_SUNDAY: row.SPECIAL_SUNDAY,
+            WEEK_TOTAL: row.WEEK_TOTAL
+        }));
+
+        res.json(adjustments);
     } catch (error) {
         console.error('Error fetching manual adjustments:', error);
         res.status(500).json({ 
