@@ -240,18 +240,13 @@
                 <div class="region-card">
                     <h3>${region.Region}</h3>
                     <div class="region-input">
-                        <div class="slider-container">
-                            <span>-100%</span>
-                            <input type="range" 
-                                   id="region-${region.Region}"
-                                   value="${region.Percentage * 100}"
-                                   min="-100"
-                                   max="100"
-                                   step="0.1"
-                                   oninput="updatePercentageDisplay(this)">
-                            <span>100%</span>
-                        </div>
-                        <div class="percentage-display" id="display-${region.Region}">${(region.Percentage * 100).toFixed(1)}%</div>
+                        <input type="number" 
+                               id="region-${region.Region}"
+                               value="${Math.round(region.Percentage * 100)}"
+                               min="0"
+                               max="100"
+                               step="1">
+                        <span>%</span>
                     </div>
                 </div>
             `).join('');
@@ -299,7 +294,7 @@
 
             const regions = Array.from(document.querySelectorAll('.region-card')).map(card => {
                 const regionName = card.querySelector('h3').textContent;
-                const percentage = parseFloat(card.querySelector('input').value) / 100; // Convert back to decimal
+                const percentage = parseFloat(card.querySelector('input').value) / 100; // Convert to decimal
                 return {
                     Region: regionName,
                     Percentage: percentage

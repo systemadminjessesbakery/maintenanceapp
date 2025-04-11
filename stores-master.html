@@ -516,12 +516,24 @@
         <div id="newRowFormContainer"></div>
         
         <div class="table-container">
-    <table id="storesTable">
-        <thead>
-            <tr></tr>
-        </thead>
-        <tbody></tbody>
-    </table>
+            <table id="storesTable">
+                <thead>
+                    <tr>
+                        <th>Store ID <span class="filter-icon" onclick="showFilter('Store_ID', this)">🔍</span></th>
+                        <th>Store Name <span class="filter-icon" onclick="showFilter('Store_Name', this)">🔍</span></th>
+                        <th>Region <span class="filter-icon" onclick="showFilter('Region', this)">🔍</span></th>
+                        <th>State <span class="filter-icon" onclick="showFilter('State', this)">🔍</span></th>
+                        <th>Active <span class="filter-icon" onclick="showFilter('Active', this)">🔍</span></th>
+                        <th>Address <span class="filter-icon" onclick="showFilter('Address', this)">🔍</span></th>
+                        <th>Supplier Code <span class="filter-icon" onclick="showFilter('Supplier_Code', this)">🔍</span></th>
+                        <th>Shelf Limit <span class="filter-icon" onclick="showFilter('Shelf_Limit', this)">🔍</span></th>
+                        <th>Special Friday</th>
+                        <th>Special Sunday</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
         </div>
     </div>
 
@@ -950,62 +962,28 @@
                 const cell = cells[i];
                 if (cell.dataset.editable === 'true') {
                     const column = cell.dataset.column;
-                    if (cell.dataset.isCheckbox === 'true') {
-                        const checkbox = cell.querySelector('input[type="checkbox"]');
-                        if (checkbox) {
-                            originalData[column] = checkbox.checked;
-                            checkbox.disabled = false;
+                    originalData[column] = cell.textContent;
 
-                            // Add event listeners for special day checkboxes
-                            if (column === 'SPECIAL_FRIDAY' || column === 'SPECIAL_SUNDAY') {
-                                checkbox.addEventListener('change', function() {
-                                    const dayToCheck = column === 'SPECIAL_FRIDAY' ? 'FRIDAY' : 'SUNDAY';
-                                    const dayCell = Array.from(cells).find(c => c.dataset.column === dayToCheck);
-                                    if (dayCell) {
-                                        const dayCheckbox = dayCell.querySelector('input[type="checkbox"]');
-                                        if (dayCheckbox) {
-                                            dayCheckbox.checked = this.checked;
-                                        }
-                                    }
-                                });
-                            }
-                        }
-                    } else if (cell.dataset.isOverride === 'true') {
-                        // Create dropdown for override fields
-                        const value = cell.textContent;
-                        originalData[column] = value;
-                        
-                        const select = document.createElement('select');
-                        select.className = 'editable';
-                        
-                        const emptyOption = document.createElement('option');
-                        emptyOption.value = '';
-                        emptyOption.textContent = '-- Select --';
-                        select.appendChild(emptyOption);
-                        
-                        regions.forEach(region => {
-                            const option = document.createElement('option');
-                            option.value = region;
-                            option.textContent = region;
-                            if (region === value) {
-                                option.selected = true;
-                            }
-                            select.appendChild(option);
-                        });
-                        
+                    if (column === 'Shelf_Limit') {
+                        const input = document.createElement('input');
+                        input.type = 'number';
+                        input.min = '0';
+                        input.step = '1';
+                        input.value = cell.textContent || '0';
                         cell.innerHTML = '';
-                        cell.appendChild(select);
+                        cell.appendChild(input);
+                    } else if (['SPECIAL_FRIDAY', 'SPECIAL_SUNDAY'].includes(column)) {
+                        const isChecked = cell.textContent === 'TRUE';
+                        cell.innerHTML = `<input type="checkbox" ${isChecked ? 'checked' : ''}>`;
+                        cell.dataset.isCheckbox = 'true';
                     } else {
-                        // Regular text input for other fields
-                        const value = cell.textContent;
-                        originalData[column] = value;
-                        cell.innerHTML = `<input type="text" value="${value}" class="editable">`;
+                        cell.innerHTML = `<input type="text" value="${cell.textContent}">`;
                     }
-                    cell.classList.add('editable');
+                    cell.classList.add('editing');
                 }
             }
 
-            // Replace edit button with save/cancel buttons
+            // Update action cell
             const actionCell = cells[cells.length - 1];
             actionCell.innerHTML = `
                 <button class="btn btn-save" onclick="saveChanges('${row.dataset.storeId}')">Save</button>
@@ -1033,7 +1011,7 @@
                     } else {
                         cell.textContent = originalData[column];
                     }
-                    cell.classList.remove('editable');
+                    cell.classList.remove('editing');
                 }
             }
 
@@ -1045,102 +1023,39 @@
             originalData = null;
         }
 
-        async function saveChanges(storeId) {
+        function saveChanges(storeId) {
             if (!editingRow) return;
 
-            const updates = {};
             const cells = editingRow.getElementsByTagName('td');
-            const requiredFields = ['Store_Name', 'Region'];
-            const missingFields = [];
+            const updates = {};
 
-            // Gather changes
             for (let i = 0; i < cells.length - 1; i++) {
                 const cell = cells[i];
                 if (cell.dataset.editable === 'true') {
                     const column = cell.dataset.column;
-                    let newValue;
-                    
-                    if (cell.dataset.isCheckbox === 'true') {
+                    let value;
+
+                    if (column === 'Shelf_Limit') {
+                        const input = cell.querySelector('input');
+                        value = input ? parseInt(input.value) || 0 : 0;
+                    } else if (cell.dataset.isCheckbox === 'true') {
                         const checkbox = cell.querySelector('input[type="checkbox"]');
-                        newValue = checkbox ? (checkbox.checked ? 'TRUE' : 'FALSE') : 'FALSE';
-                        
-                        if ((column === 'SPECIAL_FRIDAY' || column === 'SPECIAL_SUNDAY') && newValue === 'TRUE') {
-                            const dayColumn = column === 'SPECIAL_FRIDAY' ? 'FRIDAY' : 'SUNDAY';
-                            updates[dayColumn] = 'TRUE';
-                        }
-                        
-                        if (newValue !== (originalData[column] ? 'TRUE' : 'FALSE')) {
-                            updates[column] = newValue;
-                        }
+                        value = checkbox ? checkbox.checked : false;
                     } else {
                         const input = cell.querySelector('input');
-                        newValue = input ? input.value.trim() : '';
-                        
-                        // Check required fields with proper case sensitivity
-                        if (requiredFields.includes(column) && !newValue) {
-                            missingFields.push(column.replace(/_/g, ' '));
-                        }
-                        
-                        if (newValue !== originalData[column]) {
-                            updates[column] = newValue;
-                            console.log(`Column ${column} changed from '${originalData[column]}' to '${newValue}'`);
-                        }
+                        value = input ? input.value : '';
+                    }
+
+                    if (value !== originalData[column]) {
+                        updates[column] = value;
                     }
                 }
             }
 
-            // Validate required fields
-            if (missingFields.length > 0) {
-                showStatusMessage(`Please fill in required fields: ${missingFields.join(', ')}`, false);
-                return;
-            }
-
-            if (Object.keys(updates).length === 0) {
-                showStatusMessage('No changes to save', true);
+            if (Object.keys(updates).length > 0) {
+                updateStore(storeId, updates);
+            } else {
                 cancelEditing();
-                return;
-            }
-
-            console.log(`DEBUG: Saving updates for store ${storeId}:`, JSON.stringify(updates));
-
-            try {
-                console.log(`Making PUT request to /api/stores/${storeId}`);
-                const response = await fetch(`/api/stores/${storeId}`, {
-                    method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(updates)
-                });
-
-                console.log(`Response status: ${response.status}`);
-                
-                if (!response.ok) {
-                    let errorMessage = `Failed to save changes: ${response.statusText}`;
-                    let errorDetails = '';
-                    
-                    try {
-                        const errorData = await response.json();
-                        console.log('Error response data:', errorData);
-                        errorMessage = errorData.error || errorData.details || errorMessage;
-                        if (errorData.query) {
-                            errorDetails = `Error in query: ${errorData.query}`;
-                        }
-                    } catch (e) {
-                        console.log('Could not parse error response as JSON:', e);
-                    }
-                    
-                    throw new Error(errorMessage + (errorDetails ? ' - ' + errorDetails : ''));
-                }
-
-                const result = await response.json();
-                console.log("Update successful:", result);
-                showStatusMessage('Changes saved successfully', true);
-                await fetchData(); // Refresh the table
-                cancelEditing(); // Exit edit mode after successful save
-            } catch (error) {
-                console.error('Error saving changes:', error);
-                showStatusMessage(error.message, false);
             }
         }
 

@@ -521,39 +521,39 @@ app.post('/api/stores', async (req, res) => {
 app.put('/api/stores/:storeId', async (req, res) => {
     const storeId = req.params.storeId;
     const updates = req.body;
-  logger.debug(`Received request to update store ID: ${storeId}`);
-  
-  if (!poolConnected) {
-    return res.status(503).json({
-      error: 'Database not connected',
-      message: 'The database connection is not available'
-    });
-  }
-  
-  try {
-    // Validate store exists
-    const storeCheck = await pool.request()
-      .input('Store_ID', sql.VarChar(50), storeId)
-      .query('SELECT Store_ID FROM Stores_Master WHERE Store_ID = @Store_ID');
-        
-    if (storeCheck.recordset.length === 0) {
-      return res.status(404).json({ error: 'Store not found' });
+    logger.debug(`Received request to update store ID: ${storeId}`);
+    
+    if (!poolConnected) {
+        return res.status(503).json({
+            error: 'Database not connected',
+            message: 'The database connection is not available'
+        });
     }
+    
+    try {
+        // Validate store exists
+        const storeCheck = await pool.request()
+            .input('Store_ID', sql.VarChar(50), storeId)
+            .query('SELECT Store_ID FROM Stores_Master WHERE Store_ID = @Store_ID');
+            
+        if (storeCheck.recordset.length === 0) {
+            return res.status(404).json({ error: 'Store not found' });
+        }
 
         // Validate required fields
-    if (updates.Store_Name !== undefined && updates.Store_Name.trim() === '') {
-      return res.status(400).json({ error: 'Store Name cannot be empty' });
-    }
-    if (updates.Region !== undefined && updates.Region.trim() === '') {
-      return res.status(400).json({ error: 'Region cannot be empty' });
-    }
+        if (updates.Store_Name !== undefined && updates.Store_Name.trim() === '') {
+            return res.status(400).json({ error: 'Store Name cannot be empty' });
+        }
+        if (updates.Region !== undefined && updates.Region.trim() === '') {
+            return res.status(400).json({ error: 'Region cannot be empty' });
+        }
 
-    // Validate field lengths
-    if (updates.Store_Name !== undefined && updates.Store_Name.length > 500) {
-      return res.status(400).json({ error: 'Store Name exceeds maximum length of 500 characters' });
-    }
-    if (updates.Region !== undefined && updates.Region.length > 500) {
-      return res.status(400).json({ error: 'Region exceeds maximum length of 500 characters' });
+        // Validate field lengths
+        if (updates.Store_Name !== undefined && updates.Store_Name.length > 500) {
+            return res.status(400).json({ error: 'Store Name exceeds maximum length of 500 characters' });
+        }
+        if (updates.Region !== undefined && updates.Region.length > 500) {
+            return res.status(400).json({ error: 'Region exceeds maximum length of 500 characters' });
         }
 
         const request = pool.request()
@@ -566,11 +566,16 @@ app.put('/api/stores/:storeId', async (req, res) => {
 
             if (['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SPECIAL_FRIDAY', 'SPECIAL_SUNDAY'].includes(key)) {
                 // Handle boolean fields
-                request.input(key, sql.Bit, value === 'TRUE' ? 1 : 0);
+                request.input(key, sql.VarChar(50), value === 'TRUE' ? 'TRUE' : 'FALSE');
+                updateFields.push(`${key} = @${key}`);
+            } else if (key === 'Shelf_Limit') {
+                // Handle Shelf_Limit as a numeric field
+                const numValue = value === '' ? null : parseFloat(value);
+                request.input(key, sql.Int, numValue);
                 updateFields.push(`${key} = @${key}`);
             } else {
                 // Handle other fields (Store_Name, Region, State, etc.)
-        request.input(key, sql.NVarChar(500), value.trim());
+                request.input(key, sql.NVarChar(500), value.trim());
                 updateFields.push(`${key} = @${key}`);
             }
         }
@@ -589,14 +594,15 @@ app.put('/api/stores/:storeId', async (req, res) => {
         `;
 
         const result = await request.query(query);
-    logger.info(`Store ${storeId} updated successfully`);
-    if (result.recordset.length > 0) {
-      res.json(result.recordset[0]);
+        logger.info(`Store ${storeId} updated successfully`);
+        
+        if (result.recordset.length > 0) {
+            res.json(result.recordset[0]);
         } else {
-      res.json({ message: 'Store updated successfully' });
+            res.json({ message: 'Store updated successfully' });
         }
     } catch (err) {
-    logger.error(`Error updating store ${storeId}:`, err);
+        logger.error(`Error updating store ${storeId}:`, err);
         res.status(500).json({ 
             error: 'Error updating store',
             details: err.message 
@@ -966,6 +972,7 @@ app.post('/api/region-uplift', async (req, res) => {
           throw new Error('Invalid region data format');
         }
 
+            // Keep the decimal precision as is
             await transaction.request()
           .input('Region', sql.NVarChar(100), region.Region)
           .input('Percentage', sql.Decimal(5, 2), region.Percentage)
