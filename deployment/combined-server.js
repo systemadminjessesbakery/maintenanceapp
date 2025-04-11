@@ -1644,6 +1644,233 @@ app.post('/api/manual-adjustments/batch', async (req, res) => {
     }
 });
 
+// Batch update stores
+app.post('/api/stores/batch', async (req, res) => {
+    const updates = req.body;
+    if (!Array.isArray(updates) || updates.length === 0) {
+        return res.status(400).json({ message: 'Invalid request: updates must be a non-empty array' });
+    }
+
+    const pool = await getConnection();
+    const transaction = await pool.transaction();
+
+    try {
+        for (const update of updates) {
+            const { Store_ID, ...storeUpdates } = update;
+            
+            if (!Store_ID) {
+                throw new Error('Store_ID is required for each update');
+            }
+
+            // Validate required fields
+            if (!storeUpdates.Store_Name || storeUpdates.Store_Name.trim() === '') {
+                throw new Error('Store Name cannot be empty');
+            }
+            if (!storeUpdates.Region || storeUpdates.Region.trim() === '') {
+                throw new Error('Region cannot be empty');
+            }
+
+            // Build the SET clause dynamically based on provided updates
+            const setClauses = [];
+            const params = [];
+            
+            for (const [key, value] of Object.entries(storeUpdates)) {
+                if (key === 'Store_ID') continue;
+                
+                if (['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SPECIAL_FRIDAY', 'SPECIAL_SUNDAY'].includes(key)) {
+                    // Handle boolean fields
+                    const boolValue = value === true || value === 'TRUE' || value === '1' || value === 1;
+                    params.push({ name: key, value: boolValue ? 1 : 0, type: 'bit' });
+                } else if (typeof value === 'number') {
+                    params.push({ name: key, value: value, type: 'decimal' });
+                } else if (value instanceof Date) {
+                    params.push({ name: key, value: value, type: 'datetime' });
+                } else {
+                    params.push({ name: key, value: String(value).trim(), type: 'string' });
+                }
+                setClauses.push(`${key} = @${key}`);
+            }
+
+            if (setClauses.length === 0) {
+                continue; // Skip if no actual updates
+            }
+
+            const query = `
+                UPDATE Stores_Master 
+                SET ${setClauses.join(', ')}
+                WHERE Store_ID = @Store_ID;
+            `;
+
+            const request = transaction.request();
+            request.input('Store_ID', Store_ID);
+            
+            for (const param of params) {
+                switch (param.type) {
+                    case 'bit':
+                        request.input(param.name, sql.Bit, param.value);
+                        break;
+                    case 'decimal':
+                        request.input(param.name, sql.Decimal(18, 2), param.value);
+                        break;
+                    case 'datetime':
+                        request.input(param.name, sql.DateTime, param.value);
+                        break;
+                    default:
+                        request.input(param.name, sql.NVarChar(500), param.value);
+                }
+            }
+
+            await request.query(query);
+        }
+
+        await transaction.commit();
+        res.json({ message: 'All stores updated successfully' });
+    } catch (error) {
+        await transaction.rollback();
+        console.error('Error in batch update:', error);
+        res.status(500).json({ message: 'Error updating stores: ' + error.message });
+    } finally {
+        pool.close();
+    }
+});
+
+// Get manual adjustments with non-zero values
+app.get('/api/manual-adjustments', async (req, res) => {
+    if (!poolConnected) {
+        return res.status(503).json({
+            error: 'Database not connected',
+            message: 'The database connection is not available'
+        });
+    }
+
+    try {
+        const query = `
+            SELECT 
+                ma.Store_ID,
+                ma.Product_ID,
+                psb.Product_Name,
+                sm.Store_Name,
+                sm.Region,
+                ma.SUNDAY,
+                ma.MONDAY,
+                ma.TUESDAY,
+                ma.WEDNESDAY,
+                ma.THURSDAY,
+                ma.FRIDAY,
+                ma.SATURDAY
+            FROM Manual_Adjustments ma
+            INNER JOIN Stores_Master sm ON ma.Store_ID = sm.Store_ID
+            INNER JOIN Products_Standard_Baskets psb ON ma.Product_ID = psb.Product_ID
+            WHERE 
+                (ma.SUNDAY != 0 OR ma.MONDAY != 0 OR ma.TUESDAY != 0 OR 
+                 ma.WEDNESDAY != 0 OR ma.THURSDAY != 0 OR ma.FRIDAY != 0 OR 
+                 ma.SATURDAY != 0)
+            ORDER BY ma.Store_ID, ma.Product_ID;
+        `;
+
+        const result = await pool.request().query(query);
+        
+        // Format the response
+        const adjustments = result.recordset.map(row => ({
+            Store_ID: row.Store_ID,
+            Product_ID: row.Product_ID,
+            Product_Name: row.Product_Name,
+            Store_Name: row.Store_Name,
+            Region: row.Region,
+            SUNDAY: row.SUNDAY,
+            MONDAY: row.MONDAY,
+            TUESDAY: row.TUESDAY,
+            WEDNESDAY: row.WEDNESDAY,
+            THURSDAY: row.THURSDAY,
+            FRIDAY: row.FRIDAY,
+            SATURDAY: row.SATURDAY
+        }));
+
+        res.json(adjustments);
+    } catch (error) {
+        console.error('Error fetching manual adjustments:', error);
+        res.status(500).json({ 
+            error: 'Error fetching manual adjustments',
+            details: error.message
+        });
+    }
+});
+
+// Batch update products
+app.post('/api/products/batch', async (req, res) => {
+    const updates = req.body;
+    if (!Array.isArray(updates) || updates.length === 0) {
+        return res.status(400).json({ message: 'Invalid request: updates must be a non-empty array' });
+    }
+
+    const pool = await getConnection();
+    const transaction = await pool.transaction();
+
+    try {
+        for (const update of updates) {
+            const { Product_ID, ...productUpdates } = update;
+            
+            if (!Product_ID) {
+                throw new Error('Product_ID is required for each update');
+            }
+
+            // Validate required fields
+            if (!productUpdates.Product_Name || productUpdates.Product_Name.trim() === '') {
+                throw new Error('Product Name cannot be empty');
+            }
+
+            // Build the SET clause dynamically based on provided updates
+            const setClauses = [];
+            const params = [];
+            
+            for (const [key, value] of Object.entries(productUpdates)) {
+                if (key === 'Product_ID') continue;
+                
+                if (['Price', 'Cost'].includes(key)) {
+                    params.push({ name: key, value: parseFloat(value) || 0, type: 'decimal' });
+                } else {
+                    params.push({ name: key, value: String(value).trim(), type: 'string' });
+                }
+                setClauses.push(`${key} = @${key}`);
+            }
+
+            if (setClauses.length === 0) {
+                continue; // Skip if no actual updates
+            }
+
+            const query = `
+                UPDATE Products_Standard_Baskets 
+                SET ${setClauses.join(', ')}
+                WHERE Product_ID = @Product_ID;
+            `;
+
+            const request = transaction.request();
+            request.input('Product_ID', Product_ID);
+            
+            for (const param of params) {
+                switch (param.type) {
+                    case 'decimal':
+                        request.input(param.name, sql.Decimal(18, 2), param.value);
+                        break;
+                    default:
+                        request.input(param.name, sql.NVarChar(500), param.value);
+                }
+            }
+
+            await request.query(query);
+        }
+
+        await transaction.commit();
+        res.json({ message: 'All products updated successfully' });
+    } catch (error) {
+        await transaction.rollback();
+        console.error('Error in batch update:', error);
+        res.status(500).json({ message: 'Error updating products: ' + error.message });
+    } finally {
+        pool.close();
+    }
+});
+
 // Serve static files with cache busting
 app.use(express.static(__dirname, {
   etag: false,

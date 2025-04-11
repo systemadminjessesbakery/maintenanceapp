@@ -645,6 +645,124 @@
             doc.save("products.pdf");
         }
 
+        // Function to enable editing for all rows
+        function enableEditing() {
+            const rows = document.querySelectorAll('#productsTable tbody tr');
+            rows.forEach(row => {
+                const cells = row.getElementsByTagName('td');
+                for (let i = 0; i < cells.length; i++) {
+                    const cell = cells[i];
+                    if (cell.dataset.editable === 'true') {
+                        const column = cell.dataset.column;
+                        
+                        if (column === 'Price' || column === 'Cost') {
+                            const input = document.createElement('input');
+                            input.type = 'number';
+                            input.min = '0';
+                            input.step = '0.01';
+                            input.value = cell.textContent || '0';
+                            cell.innerHTML = '';
+                            cell.appendChild(input);
+                        } else {
+                            cell.innerHTML = `<input type="text" value="${cell.textContent}">`;
+                        }
+                        cell.classList.add('editing');
+                    }
+                }
+            });
+            
+            // Update button states
+            document.getElementById('editAllButton').disabled = true;
+            document.getElementById('saveAllButton').disabled = false;
+            document.getElementById('cancelAllButton').disabled = false;
+        }
+
+        // Function to cancel editing for all rows
+        function cancelAllEditing() {
+            // Reload the data to reset to original values
+            fetchData();
+            
+            // Update button states
+            document.getElementById('editAllButton').disabled = false;
+            document.getElementById('saveAllButton').disabled = true;
+            document.getElementById('cancelAllButton').disabled = true;
+        }
+
+        // Function to save changes for all rows
+        async function saveAllChanges() {
+            const saveButton = document.getElementById('saveAllButton');
+            saveButton.disabled = true;
+            saveButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+            
+            const rows = document.querySelectorAll('#productsTable tbody tr');
+            const updates = [];
+            
+            for (const row of rows) {
+                const cells = row.getElementsByTagName('td');
+                const productUpdates = { Product_ID: row.dataset.productId };
+                let hasChanges = false;
+                
+                for (let i = 0; i < cells.length; i++) {
+                    const cell = cells[i];
+                    if (cell.dataset.editable === 'true') {
+                        const column = cell.dataset.column;
+                        const input = cell.querySelector('input');
+                        if (input) {
+                            let value = input.value;
+                            if (column === 'Price' || column === 'Cost') {
+                                value = parseFloat(value) || 0;
+                            }
+                            productUpdates[column] = value;
+                            hasChanges = true;
+                        }
+                    }
+                }
+                
+                if (hasChanges) {
+                    updates.push(productUpdates);
+                }
+            }
+            
+            if (updates.length > 0) {
+                try {
+                    const response = await fetch(`${API_BASE_URL}/api/products/batch`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(updates)
+                    });
+
+                    if (!response.ok) {
+                        if (response.status === 401) {
+                            window.location.href = '/login';
+                            return;
+                        }
+                        const errorData = await response.json();
+                        throw new Error(errorData.message || 'Failed to save changes');
+                    }
+
+                    const result = await response.json();
+                    showStatusMessage(result.message || 'All changes saved successfully', true);
+                    await fetchData(); // Refresh the table
+                } catch (error) {
+                    console.error('Error saving changes:', error);
+                    showStatusMessage(error.message || 'Error saving changes', false);
+                    saveButton.disabled = false;
+                    saveButton.innerHTML = 'Save All Changes';
+                    return;
+                }
+            } else {
+                showStatusMessage('No changes to save', true);
+            }
+            
+            // Update button states
+            document.getElementById('editAllButton').disabled = false;
+            document.getElementById('saveAllButton').disabled = true;
+            document.getElementById('cancelAllButton').disabled = true;
+            saveButton.innerHTML = 'Save All Changes';
+        }
+
         // Initialize
         fetchData();
     </script>
