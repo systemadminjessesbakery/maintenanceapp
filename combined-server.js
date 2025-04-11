@@ -11,6 +11,8 @@ const fs = require('fs');
 const sql = require('mssql');
 const cors = require('cors');
 require('dotenv').config();
+const ExcelJS = require('exceljs');
+const PDFDocument = require('pdfkit');
 
 // Create Express app
 const app = express();
@@ -1371,55 +1373,178 @@ app.get('/api/manual-adjustments', async (req, res) => {
     }
 });
 
-// Update a single manual adjustment
-app.put('/api/manual-adjustments/:storeId/:productId', async (req, res) => {
-    const { storeId, productId } = req.params;
-    const updates = req.body;
+// Download manual adjustments as Excel
+app.get('/api/manual-adjustments/excel', async (req, res) => {
+    try {
+        const result = await pool.request()
+            .query(`
+                SELECT 
+                    ma.Store_ID,
+                    ma.Product_ID,
+                    ma.Store_Name,
+                    ma.Product_Name,
+                    ma.SUNDAY,
+                    ma.MONDAY,
+                    ma.TUESDAY,
+                    ma.WEDNESDAY,
+                    ma.THURSDAY,
+                    ma.FRIDAY,
+                    ma.SATURDAY,
+                    ma.[WEEK TOTAL],
+                    ma.[Date Created]
+                FROM Manual_Adjustments ma
+                WHERE ma.SUNDAY <> 0 
+                   OR ma.MONDAY <> 0 
+                   OR ma.TUESDAY <> 0 
+                   OR ma.WEDNESDAY <> 0 
+                   OR ma.THURSDAY <> 0 
+                   OR ma.FRIDAY <> 0 
+                   OR ma.SATURDAY <> 0
+                ORDER BY ma.Store_Name, ma.Product_Name;
+            `);
 
-    if (!poolConnected) {
-        return res.status(503).json({
-            error: 'Database not connected',
-            message: 'The database connection is not available'
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet('Manual Adjustments');
+
+        // Add headers
+        worksheet.columns = [
+            { header: 'Store ID', key: 'Store_ID' },
+            { header: 'Product ID', key: 'Product_ID' },
+            { header: 'Store Name', key: 'Store_Name' },
+            { header: 'Product Name', key: 'Product_Name' },
+            { header: 'Sunday', key: 'SUNDAY' },
+            { header: 'Monday', key: 'MONDAY' },
+            { header: 'Tuesday', key: 'TUESDAY' },
+            { header: 'Wednesday', key: 'WEDNESDAY' },
+            { header: 'Thursday', key: 'THURSDAY' },
+            { header: 'Friday', key: 'FRIDAY' },
+            { header: 'Saturday', key: 'SATURDAY' },
+            { header: 'Week Total', key: 'WEEK_TOTAL' },
+            { header: 'Date Created', key: 'Date_Created' }
+        ];
+
+        // Add rows
+        result.recordset.forEach(row => {
+            worksheet.addRow({
+                Store_ID: row.Store_ID,
+                Product_ID: row.Product_ID,
+                Store_Name: row.Store_Name,
+                Product_Name: row.Product_Name,
+                SUNDAY: row.SUNDAY,
+                MONDAY: row.MONDAY,
+                TUESDAY: row.TUESDAY,
+                WEDNESDAY: row.WEDNESDAY,
+                THURSDAY: row.THURSDAY,
+                FRIDAY: row.FRIDAY,
+                SATURDAY: row.SATURDAY,
+                WEEK_TOTAL: row['WEEK TOTAL'],
+                Date_Created: row['Date Created']
+            });
+        });
+
+        // Set response headers
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', 'attachment; filename=manual-adjustments.xlsx');
+
+        // Write to response
+        await workbook.xlsx.write(res);
+        res.end();
+    } catch (error) {
+        console.error('Error generating Excel file:', error);
+        res.status(500).json({ 
+            error: 'Error generating Excel file',
+            details: error.message
         });
     }
+});
 
+// Download manual adjustments as PDF
+app.get('/api/manual-adjustments/pdf', async (req, res) => {
     try {
-        const request = pool.request()
-            .input('Store_ID', sql.VarChar(50), storeId)
-            .input('Product_ID', sql.VarChar(50), productId)
-            .input('SUNDAY', sql.Int, updates.SUNDAY || 0)
-            .input('MONDAY', sql.Int, updates.MONDAY || 0)
-            .input('TUESDAY', sql.Int, updates.TUESDAY || 0)
-            .input('WEDNESDAY', sql.Int, updates.WEDNESDAY || 0)
-            .input('THURSDAY', sql.Int, updates.THURSDAY || 0)
-            .input('FRIDAY', sql.Int, updates.FRIDAY || 0)
-            .input('SATURDAY', sql.Int, updates.SATURDAY || 0);
+        const result = await pool.request()
+            .query(`
+                SELECT 
+                    ma.Store_ID,
+                    ma.Product_ID,
+                    ma.Store_Name,
+                    ma.Product_Name,
+                    ma.SUNDAY,
+                    ma.MONDAY,
+                    ma.TUESDAY,
+                    ma.WEDNESDAY,
+                    ma.THURSDAY,
+                    ma.FRIDAY,
+                    ma.SATURDAY,
+                    ma.[WEEK TOTAL],
+                    ma.[Date Created]
+                FROM Manual_Adjustments ma
+                WHERE ma.SUNDAY <> 0 
+                   OR ma.MONDAY <> 0 
+                   OR ma.TUESDAY <> 0 
+                   OR ma.WEDNESDAY <> 0 
+                   OR ma.THURSDAY <> 0 
+                   OR ma.FRIDAY <> 0 
+                   OR ma.SATURDAY <> 0
+                ORDER BY ma.Store_Name, ma.Product_Name;
+            `);
 
-        const query = `
-            MERGE INTO Manual_Adjustments AS target
-            USING (VALUES (@Store_ID, @Product_ID)) AS source (Store_ID, Product_ID)
-            ON target.Store_ID = source.Store_ID AND target.Product_ID = source.Product_ID
-            WHEN MATCHED THEN
-                UPDATE SET 
-                    SUNDAY = @SUNDAY,
-                    MONDAY = @MONDAY,
-                    TUESDAY = @TUESDAY,
-                    WEDNESDAY = @WEDNESDAY,
-                    THURSDAY = @THURSDAY,
-                    FRIDAY = @FRIDAY,
-                    SATURDAY = @SATURDAY,
-                    Updated_At = GETDATE()
-            WHEN NOT MATCHED THEN
-                INSERT (Store_ID, Product_ID, SUNDAY, MONDAY, TUESDAY, WEDNESDAY, THURSDAY, FRIDAY, SATURDAY, Created_At, Updated_At)
-                VALUES (@Store_ID, @Product_ID, @SUNDAY, @MONDAY, @TUESDAY, @WEDNESDAY, @THURSDAY, @FRIDAY, @SATURDAY, GETDATE(), GETDATE());
-        `;
+        const doc = new PDFDocument();
+        
+        // Set response headers
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', 'attachment; filename=manual-adjustments.pdf');
+        
+        // Pipe the PDF to the response
+        doc.pipe(res);
 
-        await request.query(query);
-        res.json({ message: 'Adjustment updated successfully' });
+        // Add title
+        doc.fontSize(16).text('Manual Adjustments Report', { align: 'center' });
+        doc.moveDown();
+
+        // Add table headers
+        const headers = ['Store', 'Product', 'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Week Total', 'Date Created'];
+        let y = doc.y;
+        let x = 50;
+        
+        headers.forEach(header => {
+            doc.fontSize(10).text(header, x, y);
+            x += 60;
+        });
+
+        // Add table rows
+        result.recordset.forEach(row => {
+            y += 20;
+            x = 50;
+            
+            doc.fontSize(8).text(row.Store_Name, x);
+            x += 60;
+            doc.text(row.Product_Name, x);
+            x += 60;
+            doc.text(row.SUNDAY.toString(), x);
+            x += 60;
+            doc.text(row.MONDAY.toString(), x);
+            x += 60;
+            doc.text(row.TUESDAY.toString(), x);
+            x += 60;
+            doc.text(row.WEDNESDAY.toString(), x);
+            x += 60;
+            doc.text(row.THURSDAY.toString(), x);
+            x += 60;
+            doc.text(row.FRIDAY.toString(), x);
+            x += 60;
+            doc.text(row.SATURDAY.toString(), x);
+            x += 60;
+            doc.text(row['WEEK TOTAL'].toString(), x);
+            x += 60;
+            doc.text(new Date(row['Date Created']).toLocaleDateString(), x);
+        });
+
+        // Finalize the PDF
+        doc.end();
     } catch (error) {
-        console.error('Error updating manual adjustment:', error);
+        console.error('Error generating PDF file:', error);
         res.status(500).json({ 
-            error: 'Error updating manual adjustment',
+            error: 'Error generating PDF file',
             details: error.message
         });
     }

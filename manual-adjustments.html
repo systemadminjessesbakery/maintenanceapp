@@ -141,6 +141,25 @@
             border-radius: 4px;
             box-sizing: border-box;
         }
+
+        .header-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .download-button {
+            padding: 8px 16px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .download-button:hover {
+            background-color: #45a049;
+        }
     </style>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
@@ -157,6 +176,10 @@
             <button id="editButton" onclick="enableEditing()" class="edit-button">Edit</button>
             <button id="saveButton" onclick="saveAllChanges()" class="save-button" disabled>Save Changes</button>
             <button id="cancelButton" onclick="cancelEditing()" class="cancel-button" disabled>Cancel</button>
+        </div>
+        <div class="header-buttons">
+            <button onclick="downloadExcel()" class="download-button">Download Excel</button>
+            <button onclick="downloadPDF()" class="download-button">Download PDF</button>
         </div>
     </div>
 
@@ -428,6 +451,46 @@
             setTimeout(() => {
                 statusDiv.style.display = 'none';
             }, 3000);
+        }
+
+        async function downloadExcel() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/manual-adjustments/excel`);
+                if (!response.ok) throw new Error('Failed to download Excel file');
+                
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'manual-adjustments.xlsx';
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                a.remove();
+            } catch (error) {
+                console.error('Error downloading Excel file:', error);
+                alert('Failed to download Excel file. Please try again.');
+            }
+        }
+
+        async function downloadPDF() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/manual-adjustments/pdf`);
+                if (!response.ok) throw new Error('Failed to download PDF file');
+                
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'manual-adjustments.pdf';
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                a.remove();
+            } catch (error) {
+                console.error('Error downloading PDF file:', error);
+                alert('Failed to download PDF file. Please try again.');
+            }
         }
 
         // Initialize the page
