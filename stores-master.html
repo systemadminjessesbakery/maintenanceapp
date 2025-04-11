@@ -1110,7 +1110,31 @@
 
             if (Object.keys(updates).length > 0) {
                 try {
-                    await updateStore(storeId, updates);
+                    // Use batch update endpoint
+                    const response = await fetch(`${API_BASE_URL}/api/stores/batch`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': 'Bearer ' + sessionStorage.getItem('token')
+                        },
+                        body: JSON.stringify([{
+                            Store_ID: storeId,
+                            ...updates
+                        }])
+                    });
+
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        try {
+                            const errorData = JSON.parse(errorText);
+                            throw new Error(errorData.error || errorData.details || `Failed to update store (${response.status})`);
+                        } catch (jsonError) {
+                            throw new Error(`Failed to update store: ${errorText || response.statusText}`);
+                        }
+                    }
+
+                    showStatusMessage('Store updated successfully', true);
+                    await fetchData(); // Refresh the table
                 } catch (error) {
                     console.error(`Error updating store ${storeId}:`, error);
                     showStatusMessage(`Error updating store ${storeId}: ${error.message}`, false);
@@ -1517,6 +1541,15 @@
             document.getElementById('cancelAllButton').disabled = true;
         }
         
+        // Function to get column name from index
+        function getColumnName(index) {
+            const headers = document.querySelectorAll('#storesTable thead th');
+            if (index >= 0 && index < headers.length) {
+                return headers[index].textContent.trim().split(' ')[0]; // Remove filter icon text
+            }
+            return null;
+        }
+
         // Function to save changes for all rows
         async function saveAllChanges() {
             const saveButton = document.getElementById('saveAllButton');
@@ -1538,18 +1571,24 @@
                 const cells = row.cells;
                 for (let i = 0; i < cells.length; i++) {
                     const cell = cells[i];
-                    const input = cell.querySelector('input, select');
-                    if (input && input.dataset.original !== input.value) {
-                        const columnName = getColumnName(i);
-                        if (columnName) {
-                            let value = input.value;
-                            
-                            // Handle boolean values
+                    if (cell.dataset.editable === 'true') {
+                        const columnName = cell.dataset.column;
+                        const input = cell.querySelector('input, select');
+                        
+                        if (input) {
+                            let value;
                             if (input.type === 'checkbox') {
                                 value = input.checked ? 'TRUE' : 'FALSE';
+                            } else if (input.type === 'number') {
+                                value = input.value === '' ? null : parseInt(input.value);
+                            } else {
+                                value = input.value;
                             }
                             
-                            updatedData[columnName] = value;
+                            // Only include non-empty values
+                            if (value !== null && value !== '') {
+                                updatedData[columnName] = value;
+                            }
                         }
                     }
                 }
