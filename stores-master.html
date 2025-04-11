@@ -1110,17 +1110,17 @@
 
             if (Object.keys(updates).length > 0) {
                 try {
-                    // Use batch update endpoint
-                    const response = await fetch(`${API_BASE_URL}/api/stores/batch`, {
+                    // Use direct database update endpoint
+                    const response = await fetch(`${API_BASE_URL}/api/direct-store-update`, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
                             'Authorization': 'Bearer ' + sessionStorage.getItem('token')
                         },
-                        body: JSON.stringify([{
+                        body: JSON.stringify({
                             Store_ID: storeId,
-                            ...updates
-                        }])
+                            updates: updates
+                        })
                     });
 
                     if (!response.ok) {
@@ -1552,92 +1552,83 @@
 
         // Function to save changes for all rows
         async function saveAllChanges() {
-            const saveButton = document.getElementById('saveAllButton');
+            const saveButton = document.getElementById('saveButton');
             saveButton.disabled = true;
-            saveButton.innerHTML = 'Saving...';
+            saveButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
 
-            const updates = [];
-            const rows = document.querySelectorAll('#storesTable tbody tr');
-            
-            for (const row of rows) {
-                const storeId = row.getAttribute('data-store-id');
-                if (!storeId) continue;
+            try {
+                const rows = document.querySelectorAll('#storesTable tbody tr');
+                const updates = [];
 
-                const updatedData = {
-                    Store_ID: storeId
-                };
+                for (const row of rows) {
+                    const storeId = row.cells[0].textContent.trim();
+                    const rowUpdates = {};
 
-                // Only include cells that have been modified
-                const cells = row.cells;
-                for (let i = 0; i < cells.length; i++) {
-                    const cell = cells[i];
-                    if (cell.dataset.editable === 'true') {
-                        const columnName = cell.dataset.column;
-                        const input = cell.querySelector('input, select');
-                        
-                        if (input) {
-                            let value;
-                            if (input.type === 'checkbox') {
-                                value = input.checked ? 'TRUE' : 'FALSE';
-                            } else if (input.type === 'number') {
-                                value = input.value === '' ? null : parseInt(input.value);
-                            } else {
-                                value = input.value;
-                            }
-                            
-                            // Only include non-empty values
-                            if (value !== null && value !== '') {
-                                updatedData[columnName] = value;
-                            }
+                    // Only include days that have been modified
+                    for (let i = 4; i < row.cells.length - 1; i++) {
+                        const cell = row.cells[i];
+                        const columnName = getColumnName(i);
+                        let value = cell.textContent.trim();
+
+                        if (cell.querySelector('input[type="checkbox"]')) {
+                            value = cell.querySelector('input[type="checkbox"]').checked ? 1 : 0;
+                        } else if (cell.querySelector('input[type="number"]')) {
+                            value = parseFloat(cell.querySelector('input[type="number"]').value) || 0;
                         }
+
+                        // Only include non-zero values
+                        if (value !== 0) {
+                            rowUpdates[columnName] = value;
+                        }
+                    }
+
+                    // Only include rows that have actual changes
+                    if (Object.keys(rowUpdates).length > 0) {
+                        updates.push({
+                            Store_ID: storeId,
+                            updates: rowUpdates
+                        });
                     }
                 }
 
-                // Only include stores that have actual changes
-                if (Object.keys(updatedData).length > 1) { // More than just Store_ID
-                    updates.push(updatedData);
-                }
-            }
-
-            if (updates.length > 0) {
-                try {
-                    const response = await fetch(`${API_BASE_URL}/api/stores/batch`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': 'Bearer ' + sessionStorage.getItem('token')
-                        },
-                        body: JSON.stringify(updates)
-                    });
-
-                    if (!response.ok) {
-                        if (response.status === 401) {
-                            window.location.href = '/login';
-                            return;
-                        }
-                        const errorData = await response.json();
-                        throw new Error(errorData.message || 'Failed to save changes');
-                    }
-
-                    const result = await response.json();
-                    showStatusMessage(result.message || 'All changes saved successfully', true);
-                    await fetchData(); // Refresh the table
-                } catch (error) {
-                    console.error('Error saving changes:', error);
-                    showStatusMessage(error.message || 'Error saving changes', false);
-                    saveButton.disabled = false;
-                    saveButton.innerHTML = 'Save All Changes';
+                if (updates.length === 0) {
+                    showStatusMessage('No changes to save', true);
                     return;
                 }
-            } else {
-                showStatusMessage('No changes to save', true);
+
+                const response = await fetch(`${API_BASE_URL}/api/direct-store-update/batch`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + sessionStorage.getItem('token')
+                    },
+                    body: JSON.stringify(updates)
+                });
+
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        window.location.href = 'login.html';
+                        return;
+                    }
+                    const errorText = await response.text();
+                    try {
+                        const errorData = JSON.parse(errorText);
+                        throw new Error(errorData.error || errorData.details || `Failed to save changes (${response.status})`);
+                    } catch (jsonError) {
+                        throw new Error(`Failed to save changes: ${errorText || response.statusText}`);
+                    }
+                }
+
+                showStatusMessage('Changes saved successfully', true);
+                await fetchData(); // Refresh the table
+                disableEditing();
+            } catch (error) {
+                console.error('Error saving changes:', error);
+                showStatusMessage('Error saving changes: ' + error.message, false);
+            } finally {
+                saveButton.disabled = false;
+                saveButton.innerHTML = 'Save Changes';
             }
-            
-            // Update button states
-            document.getElementById('editAllButton').disabled = false;
-            document.getElementById('saveAllButton').disabled = true;
-            document.getElementById('cancelAllButton').disabled = true;
-            saveButton.innerHTML = 'Save All Changes';
         }
 
         async function updateStore(storeId, data) {
