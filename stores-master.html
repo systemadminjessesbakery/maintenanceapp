@@ -173,6 +173,10 @@
         .button-container {
             text-align: center;
             margin-bottom: 15px;
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            flex-wrap: wrap;
         }
         .editable {
             background-color: #fff3cd;
@@ -505,6 +509,9 @@
         <div class="button-container">
             <button class="btn" onclick="fetchData()">Refresh Data</button>
             <button class="btn" onclick="showNewRowForm()">Add New Store</button>
+            <button class="btn btn-edit" id="editAllButton" onclick="enableEditing()">Edit All</button>
+            <button class="btn btn-save" id="saveAllButton" onclick="saveAllChanges()" disabled>Save All Changes</button>
+            <button class="btn btn-cancel" id="cancelAllButton" onclick="cancelAllEditing()" disabled>Cancel</button>
             <button class="btn btn-clear-filters" onclick="clearAllFilters()">Clear All Filters</button>
             <button class="btn btn-export-excel" onclick="exportToExcel()">Export to Excel</button>
             <button class="btn btn-export-pdf" onclick="exportToPDF()">Export to PDF</button>
@@ -696,11 +703,11 @@
                 
                 // Add action buttons
                 const actionTd = document.createElement('td');
-                const editBtn = document.createElement('button');
-                editBtn.textContent = 'Edit';
-                editBtn.className = 'btn btn-edit';
-                editBtn.onclick = () => startEditing(tr);
-                actionTd.appendChild(editBtn);
+                const viewBtn = document.createElement('button');
+                viewBtn.textContent = 'View';
+                viewBtn.className = 'btn btn-edit';
+                viewBtn.onclick = () => startEditing(tr);
+                actionTd.appendChild(viewBtn);
                 tr.appendChild(actionTd);
                 
                     tbody.appendChild(tr);
@@ -973,10 +980,11 @@
                         cell.innerHTML = '';
                         cell.appendChild(input);
                     } else if (['SPECIAL_FRIDAY', 'SPECIAL_SUNDAY'].includes(column)) {
-                        const isChecked = cell.textContent === 'TRUE';
+                        const isChecked = cell.querySelector('input[type="checkbox"]').checked;
                         cell.innerHTML = `<input type="checkbox" ${isChecked ? 'checked' : ''}>`;
                         cell.dataset.isCheckbox = 'true';
-                    } else {
+                    } else if (!['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'].includes(column)) {
+                        // Don't modify the day columns with checkboxes and override icons
                         cell.innerHTML = `<input type="text" value="${cell.textContent}">`;
                     }
                     cell.classList.add('editing');
@@ -1404,6 +1412,123 @@
             const filename = `JessesBakery_Stores_${new Date().toISOString().split('T')[0]}.pdf`;
             pdfMake.createPdf(docDefinition).download(filename);
             showStatusMessage('PDF file exported successfully', true);
+        }
+
+        // Function to enable editing for all rows
+        function enableEditing() {
+            const rows = document.querySelectorAll('#storesTable tbody tr');
+            rows.forEach(row => {
+                const cells = row.getElementsByTagName('td');
+                for (let i = 0; i < cells.length - 1; i++) {
+                    const cell = cells[i];
+                    if (cell.dataset.editable === 'true') {
+                        const column = cell.dataset.column;
+                        
+                        if (column === 'Shelf_Limit') {
+                            const input = document.createElement('input');
+                            input.type = 'number';
+                            input.min = '0';
+                            input.step = '1';
+                            input.value = cell.textContent || '0';
+                            cell.innerHTML = '';
+                            cell.appendChild(input);
+                        } else if (['SPECIAL_FRIDAY', 'SPECIAL_SUNDAY'].includes(column)) {
+                            const isChecked = cell.querySelector('input[type="checkbox"]').checked;
+                            cell.innerHTML = `<input type="checkbox" ${isChecked ? 'checked' : ''}>`;
+                            cell.dataset.isCheckbox = 'true';
+                        } else if (!['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'].includes(column)) {
+                            // Don't modify the day columns with checkboxes and override icons
+                            cell.innerHTML = `<input type="text" value="${cell.textContent}">`;
+                        }
+                        cell.classList.add('editing');
+                    }
+                }
+                
+                // Update action cell
+                const actionCell = cells[cells.length - 1];
+                actionCell.innerHTML = `<button class="btn btn-save" onclick="saveChanges('${row.dataset.storeId}')">Save</button>`;
+            });
+            
+            // Update button states
+            document.getElementById('editAllButton').disabled = true;
+            document.getElementById('saveAllButton').disabled = false;
+            document.getElementById('cancelAllButton').disabled = false;
+        }
+        
+        // Function to cancel editing for all rows
+        function cancelAllEditing() {
+            // Reload the data to reset to original values
+            fetchData();
+            
+            // Update button states
+            document.getElementById('editAllButton').disabled = false;
+            document.getElementById('saveAllButton').disabled = true;
+            document.getElementById('cancelAllButton').disabled = true;
+        }
+        
+        // Function to save changes for all rows
+        async function saveAllChanges() {
+            const saveButton = document.getElementById('saveAllButton');
+            saveButton.disabled = true;
+            saveButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+            
+            const rows = document.querySelectorAll('#storesTable tbody tr');
+            let hasChanges = false;
+            
+            for (const row of rows) {
+                const cells = row.getElementsByTagName('td');
+                const updates = {};
+                const storeId = row.dataset.storeId;
+                
+                for (let i = 0; i < cells.length - 1; i++) {
+                    const cell = cells[i];
+                    if (cell.dataset.editable === 'true') {
+                        const column = cell.dataset.column;
+                        let value;
+                        
+                        if (column === 'Shelf_Limit') {
+                            const input = cell.querySelector('input');
+                            value = input ? parseInt(input.value) || 0 : 0;
+                        } else if (cell.dataset.isCheckbox === 'true') {
+                            const checkbox = cell.querySelector('input[type="checkbox"]');
+                            value = checkbox ? checkbox.checked : false;
+                        } else if (!['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'].includes(column)) {
+                            const input = cell.querySelector('input');
+                            value = input ? input.value : '';
+                        }
+                        
+                        if (value !== undefined) {
+                            updates[column] = value;
+                            hasChanges = true;
+                        }
+                    }
+                }
+                
+                if (Object.keys(updates).length > 0) {
+                    try {
+                        await updateStore(storeId, updates);
+                    } catch (error) {
+                        console.error(`Error updating store ${storeId}:`, error);
+                        showStatusMessage(`Error updating store ${storeId}: ${error.message}`, false);
+                        saveButton.disabled = false;
+                        saveButton.innerHTML = 'Save All Changes';
+                        return;
+                    }
+                }
+            }
+            
+            if (hasChanges) {
+                showStatusMessage('All changes saved successfully', true);
+                await fetchData(); // Refresh the table
+            } else {
+                showStatusMessage('No changes to save', true);
+            }
+            
+            // Update button states
+            document.getElementById('editAllButton').disabled = false;
+            document.getElementById('saveAllButton').disabled = true;
+            document.getElementById('cancelAllButton').disabled = true;
+            saveButton.innerHTML = 'Save All Changes';
         }
 
         // Start fetching data when page loads
