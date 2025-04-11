@@ -8,6 +8,11 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js"></script>
     <script>
+        // API Configuration
+        const API_BASE_URL = window.location.hostname.includes('azure') 
+            ? 'https://jessesbakerymaintenanceapp-g9fycpf5hje5gzfe.australiaeast-01.azurewebsites.net'
+            : '';
+
         // Convert logo to base64 for PDF export
         const logoImg = document.createElement('img');
         logoImg.src = '/logo';
@@ -607,19 +612,21 @@
             loading.style.display = 'block';
             
             try {
-                const response = await fetch('/api/stores', {
+                const response = await fetch(`${API_BASE_URL}/api/stores`, {
                     method: 'GET',
                     headers: {
-                        'Accept': 'application/json'
+                        'Accept': 'application/json',
+                        'Authorization': 'Bearer ' + sessionStorage.getItem('token')
                     },
-                    cache: 'no-cache'
+                    cache: 'no-cache',
+                    credentials: 'include'
                 });
                 
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
                 
-            const data = await response.json();
+                const data = await response.json();
                 console.log("Raw data received:", data);
                 
                 if (!data || !data.stores || !Array.isArray(data.stores)) {
@@ -855,7 +862,13 @@
             
             try {
                 // Get the next Store_ID
-                const response = await fetch('/api/stores/next-id');
+                const response = await fetch(`${API_BASE_URL}/api/stores/next-id`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': 'Bearer ' + sessionStorage.getItem('token')
+                    },
+                    credentials: 'include'
+                });
                 if (!response.ok) {
                     throw new Error('Failed to get next Store ID');
                 }
@@ -960,10 +973,11 @@
             };
 
             try {
-                const response = await fetch('/api/stores', {
+                const response = await fetch(`${API_BASE_URL}/api/stores`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + sessionStorage.getItem('token')
                     },
                     body: JSON.stringify(newStore)
                 });
@@ -1206,10 +1220,11 @@
             const overrideColumn = dayColumn.substring(0, 3) + '_OVERRIDE';
             
             try {
-                const response = await fetch(`/api/stores/${storeId}`, {
+                const response = await fetch(`${API_BASE_URL}/api/stores/${storeId}`, {
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + sessionStorage.getItem('token')
                     },
                     body: JSON.stringify({
                         [overrideColumn]: overrideValue
@@ -1550,7 +1565,8 @@
                     const response = await fetch(`${API_BASE_URL}/api/stores/batch`, {
                         method: 'POST',
                         headers: {
-                            'Content-Type': 'application/json'
+                            'Content-Type': 'application/json',
+                            'Authorization': 'Bearer ' + sessionStorage.getItem('token')
                         },
                         body: JSON.stringify(updates)
                     });
@@ -1591,9 +1607,12 @@
                 const cleanData = sanitizeStoreData(data);
                 console.log("Sending clean data to server:", cleanData);
                 
-                const response = await fetch('/api/direct-store-update', {
+                const response = await fetch(`${API_BASE_URL}/api/direct-store-update`, {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + sessionStorage.getItem('token')
+                    },
                     body: JSON.stringify({
                         storeId: storeId,
                         data: cleanData

@@ -186,12 +186,17 @@
     <div id="statusMessage" class="status-message"></div>
 
     <script>
+        // API Configuration
+        const API_BASE_URL = window.location.hostname.includes('azure') 
+            ? 'https://jessesbakerymaintenanceapp-g9fycpf5hje5gzfe.australiaeast-01.azurewebsites.net'
+            : '';
+
         let isEditingEnabled = false;
         let originalData = [];
 
         async function fetchData() {
             try {
-                const response = await fetch('/api/manual-adjustments', {
+                const response = await fetch(`${API_BASE_URL}/api/manual-adjustments`, {
                     method: 'GET',
                     headers: {
                         'Content-Type': 'application/json',
@@ -303,7 +308,7 @@
 
         async function updateAdjustment(storeId, productId, updatedData) {
             try {
-                const response = await fetch(`/api/manual-adjustments/${storeId}/${productId}`, {
+                const response = await fetch(`${API_BASE_URL}/api/manual-adjustments/${storeId}/${productId}`, {
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',
@@ -374,7 +379,7 @@
                     return;
                 }
 
-                const response = await fetch('/api/manual-adjustments/batch', {
+                const response = await fetch(`${API_BASE_URL}/api/manual-adjustments/batch`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
